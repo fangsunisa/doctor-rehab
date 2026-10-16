@@ -16,8 +16,9 @@ export default function ProfileDoctorScreen({ navigation }: { navigation?: any }
   const [fullName, setFullName] = useState('');
   const [department, setDepartment] = useState('');
   const [position, setPosition] = useState('');
+  const [profileImage, setProfileImage] = useState<string | null>(null);
 
-  // ดึงข้อมูลโปรไฟล์หมอจาก Backend ทันทีที่เปิดหน้าจอ (กำหนด StaffID เป็น 1 ตามฐานข้อมูล)
+  // ดึงข้อมูลโปรไฟล์หมอจาก Backend ทันทีที่เปิดหน้าจอ
   useEffect(() => {
     fetchDoctorProfile();
   }, []);
@@ -29,18 +30,39 @@ export default function ProfileDoctorScreen({ navigation }: { navigation?: any }
 
       if (response.ok) {
         setLicenseNo(data.License_Number || '');
-        // รวม First_Name และ Last_Name เข้าด้วยกันเพื่อให้แสดงในช่องชื่อ-นามสกุล
         const nameCombined = `${data.First_Name || ''} ${data.Last_Name || ''}`.trim();
         setFullName(nameCombined);
         setDepartment(data.Department || '');
         setPosition(data.Position || '');
+        if (data.Profile_Image) {
+          setProfileImage(data.Profile_Image);
+        }
       }
     } catch (error) {
       console.error('Error fetching doctor profile:', error);
     }
   };
 
-  // ฟังก์ชันนำทางไปหน้ารายชื่อผู้ป่วย (Patient)
+  // ฟังก์ชันเลือกรูปภาพสำหรับเวอร์ชันเว็บโดยเฉพาะ
+  const handlePickImage = () => {
+    if (Platform.OS === 'web') {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = (e: any) => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (uploadEvent: any) => {
+            setProfileImage(uploadEvent.target.result);
+          };
+          reader.readAsDataURL(file);
+        }
+      };
+      input.click();
+    }
+  };
+
   const goToPatient = () => {
     if (navigation?.navigate) {
       navigation.navigate('Patient');
@@ -65,10 +87,9 @@ export default function ProfileDoctorScreen({ navigation }: { navigation?: any }
     }
   };
 
-  // กดบันทึกเพื่ออัปเดตข้อมูลลง MySQL แล้วเปลี่ยนหน้าไปที่ Patient ทันที
+  // กดบันทึกเพื่ออัปเดตข้อมูลและรูปภาพลง MySQL
   const handleSave = async () => {
     try {
-      // แยกชื่อกับนามสกุลออกจากกันเพื่อส่งกลับไปบันทึก
       const nameParts = fullName.trim().split(' ');
       const firstName = nameParts[0] || '';
       const lastName = nameParts.slice(1).join(' ') || '';
@@ -84,6 +105,7 @@ export default function ProfileDoctorScreen({ navigation }: { navigation?: any }
           lastName: lastName,
           department: department,
           position: position,
+          profileImage: profileImage,
         }),
       });
     } catch (error) {
@@ -140,7 +162,7 @@ export default function ProfileDoctorScreen({ navigation }: { navigation?: any }
           <View style={styles.doctorProfile}>
             <View style={styles.doctorAvatar}>
               <Image
-                source={require('./img/jenohighschool.jpg')}
+                source={profileImage ? { uri: profileImage } : require('./img/jenohighschool.jpg')}
                 style={styles.doctorAvatarImage}
                 resizeMode="cover"
               />
@@ -164,10 +186,10 @@ export default function ProfileDoctorScreen({ navigation }: { navigation?: any }
             <View style={styles.profileInfoCard}>
               <View style={styles.avatarWrapper}>
                 <Image
-                  source={require('./img/jenohighschool.jpg')}
+                  source={profileImage ? { uri: profileImage } : require('./img/jenohighschool.jpg')}
                   style={styles.profileAvatar}
                 />
-                <TouchableOpacity onPress={() => {}}>
+                <TouchableOpacity onPress={handlePickImage}>
                   <Text style={styles.btnEditPhoto}>แก้ไขรูปภาพ</Text>
                 </TouchableOpacity>
               </View>
@@ -237,7 +259,6 @@ export default function ProfileDoctorScreen({ navigation }: { navigation?: any }
 
             {/* Action Buttons */}
             <View style={styles.actionRow}>
-              {/* ปุ่มยกเลิก -> ไปหน้า Patient */}
               <TouchableOpacity
                 style={styles.btnSecondary}
                 onPress={goToPatient}
@@ -245,7 +266,6 @@ export default function ProfileDoctorScreen({ navigation }: { navigation?: any }
                 <Text style={styles.btnSecondaryText}>ยกเลิก</Text>
               </TouchableOpacity>
 
-              {/* ปุ่มบันทึก -> อัปเดตข้อมูลและไปหน้า Patient */}
               <TouchableOpacity style={styles.btnPrimary} onPress={handleSave}>
                 <Text style={styles.btnPrimaryText}>บันทึก</Text>
               </TouchableOpacity>
