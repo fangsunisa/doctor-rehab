@@ -175,11 +175,7 @@ export default function SignupHnScreen({ navigation }: { navigation: any }) {
 
   const handleSubmit = async () => {
     if (!firstName || !lastName || !nationalId || !hn || !phone) {
-      if (Platform.OS === 'web') {
-        window.alert('กรุณากรอกข้อมูลสำคัญให้ครบถ้วน (รหัส HN, เลขบัตรประชาชน, เบอร์โทร, ชื่อ, นามสกุล)');
-      } else {
-        Alert.alert('แจ้งเตือน', 'กรุณากรอกข้อมูลสำคัญให้ครบถ้วน (รหัส HN, เลขบัตรประชาชน, เบอร์โทร, ชื่อ, นามสกุล)');
-      }
+      Alert.alert('แจ้งเตือน', 'กรุณากรอกข้อมูลสำคัญให้ครบถ้วน (รหัส HN, เลขบัตรประชาชน, เบอร์โทร, ชื่อ, นามสกุล)');
       return;
     }
 
@@ -216,19 +212,11 @@ export default function SignupHnScreen({ navigation }: { navigation: any }) {
         // เมื่อบันทึกสำเร็จ เปลี่ยนหน้าไป Patient ทันทีโดยไม่มีป๊อปอัพแจ้งเตือน
         navigation.navigate('Patient');
       } else {
-        if (Platform.OS === 'web') {
-          window.alert('บันทึกไม่สำเร็จ: ' + (result.error || result.message));
-        } else {
-          Alert.alert('ผิดพลาด', 'บันทึกไม่สำเร็จ: ' + (result.error || result.message));
-        }
+        Alert.alert('ผิดพลาด', 'บันทึกไม่สำเร็จ: ' + (result.error || result.message));
       }
     } catch (error) {
       console.error('Error adding patient:', error);
-      if (Platform.OS === 'web') {
-        window.alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ Backend ได้');
-      } else {
-        Alert.alert('ข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ Backend ได้');
-      }
+      Alert.alert('ข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ Backend ได้');
     }
   };
 

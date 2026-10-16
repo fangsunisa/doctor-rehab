@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Image,
   Platform,
@@ -16,6 +16,29 @@ export default function ProfileDoctorScreen({ navigation }: { navigation?: any }
   const [fullName, setFullName] = useState('');
   const [department, setDepartment] = useState('');
   const [position, setPosition] = useState('');
+
+  // ดึงข้อมูลโปรไฟล์หมอจาก Backend ทันทีที่เปิดหน้าจอ (กำหนด StaffID เป็น 1 ตามฐานข้อมูล)
+  useEffect(() => {
+    fetchDoctorProfile();
+  }, []);
+
+  const fetchDoctorProfile = async () => {
+    try {
+      const response = await fetch('http://localhost:3000/api/doctor/profile/1');
+      const data = await response.json();
+
+      if (response.ok) {
+        setLicenseNo(data.License_Number || '');
+        // รวม First_Name และ Last_Name เข้าด้วยกันเพื่อให้แสดงในช่องชื่อ-นามสกุล
+        const nameCombined = `${data.First_Name || ''} ${data.Last_Name || ''}`.trim();
+        setFullName(nameCombined);
+        setDepartment(data.Department || '');
+        setPosition(data.Position || '');
+      }
+    } catch (error) {
+      console.error('Error fetching doctor profile:', error);
+    }
+  };
 
   // ฟังก์ชันนำทางไปหน้ารายชื่อผู้ป่วย (Patient)
   const goToPatient = () => {
@@ -42,8 +65,31 @@ export default function ProfileDoctorScreen({ navigation }: { navigation?: any }
     }
   };
 
-  // กดบันทึกแล้วเปลี่ยนหน้าไปที่ Patient ทันทีโดยไม่มี Alert/Pop-up
-  const handleSave = () => {
+  // กดบันทึกเพื่ออัปเดตข้อมูลลง MySQL แล้วเปลี่ยนหน้าไปที่ Patient ทันที
+  const handleSave = async () => {
+    try {
+      // แยกชื่อกับนามสกุลออกจากกันเพื่อส่งกลับไปบันทึก
+      const nameParts = fullName.trim().split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+
+      await fetch('http://localhost:3000/api/doctor/profile/1', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          licenseNumber: licenseNo,
+          firstName: firstName,
+          lastName: lastName,
+          department: department,
+          position: position,
+        }),
+      });
+    } catch (error) {
+      console.error('Error updating profile:', error);
+    }
+
     goToPatient();
   };
 
@@ -199,7 +245,7 @@ export default function ProfileDoctorScreen({ navigation }: { navigation?: any }
                 <Text style={styles.btnSecondaryText}>ยกเลิก</Text>
               </TouchableOpacity>
 
-              {/* ปุ่มบันทึก -> ไปหน้า Patient ทันที */}
+              {/* ปุ่มบันทึก -> อัปเดตข้อมูลและไปหน้า Patient */}
               <TouchableOpacity style={styles.btnPrimary} onPress={handleSave}>
                 <Text style={styles.btnPrimaryText}>บันทึก</Text>
               </TouchableOpacity>

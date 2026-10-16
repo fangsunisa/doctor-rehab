@@ -21,11 +21,7 @@ export default function LoginScreen({ navigation }: { navigation?: any }) {
 
   const handleLogin = () => {
     if (!username || !password) {
-      if (Platform.OS === 'web') {
-        window.alert('กรุณากรอกชื่อผู้ใช้งานและรหัสผ่าน');
-      } else {
-        Alert.alert('แจ้งเตือน', 'กรุณากรอกชื่อผู้ใช้งานและรหัสผ่าน');
-      }
+      Alert.alert('แจ้งเตือน', 'กรุณากรอกชื่อผู้ใช้งานและรหัสผ่าน');
       return;
     }
 
@@ -113,11 +109,7 @@ export default function LoginScreen({ navigation }: { navigation?: any }) {
             <View style={styles.forgotPasswordWrapper}>
               <TouchableOpacity
                 onPress={() => {
-                  if (Platform.OS === 'web') {
-                    window.alert('กรุณาติดต่อผู้ดูแลระบบเพื่อขอรหัสผ่านใหม่');
-                  } else {
-                    Alert.alert('รีเซ็ตรหัสผ่าน', 'กรุณาติดต่อผู้ดูแลระบบเพื่อขอรหัสผ่านใหม่');
-                  }
+                  Alert.alert('รีเซ็ตรหัสผ่าน', 'กรุณาติดต่อผู้ดูแลระบบเพื่อขอรหัสผ่านใหม่');
                 }}
               >
                 <Text style={styles.forgotPasswordLink}>ลืมรหัสผ่าน?</Text>
@@ -176,7 +168,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   loginBanner: {
-    flex: 1.2, // ปรับอัตราส่วนฝั่งรูปโลโก้ให้กว้างขึ้น
+    flex: 1.2,
     minWidth: 450,
     backgroundColor: '#E3F2FD',
     padding: 40,
@@ -203,8 +195,8 @@ const styles = StyleSheet.create({
   },
   bannerImgWrapper: {
     width: '100%',
-    maxWidth: 450, // ขยายขนาดความกว้างโลโก้เพิ่มขึ้น
-    height: 400,    // ขยายความสูงให้รูปเด่นตระการตา
+    maxWidth: 450,
+    height: 400,
     justifyContent: 'center',
     alignItems: 'center',
   },
