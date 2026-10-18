@@ -74,7 +74,8 @@ module.exports = {
     devMiddleware: {
       publicPath: '/',
     },
-    port: 8080,
+    port: 3001,           // เปลี่ยนพอร์ตเป็น 3001 ตามที่คุยกัน
+    allowedHosts: 'all',  // เพิ่มบรรทัดนี้เพื่อให้เว็บยอมรับชื่อโดเมน remotion-rehab.local
     hot: true,
     historyApiFallback: {
       index: '/index.html',
