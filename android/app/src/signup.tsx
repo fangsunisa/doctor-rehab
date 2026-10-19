@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Picker } from '@react-native-picker/picker';
 import {
   Alert,
@@ -23,6 +23,7 @@ const monthNames = [
 const weekDays = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
 
 function formatDate(date: Date): string {
+  if (isNaN(date.getTime())) return '';
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
@@ -42,7 +43,7 @@ function parseDate(value: string): Date | null {
   return date;
 }
 
-// Component ปฏิทินเลือกวันเกิด (รองรับการกดเลือกปีและเดือนย้อนหลัง)
+// Component ปฏิทินเลือกวันเกิด
 function BirthCalendarModal({
   visible,
   initialDate,
@@ -147,12 +148,13 @@ function BirthCalendarModal({
   );
 }
 
-export default function SignupHnScreen({ navigation }: { navigation: any }) {
-  // --- Form State ---
-  const [hn, setHn] = useState('');
+export default function SignupHnScreen({ route, navigation }: { route?: any; navigation: any }) {
+  const patientId = route?.params?.patientId || (Platform.OS === 'web' ? new URLSearchParams(window.location.search).get('patientId') : null);
+
+  // --- Form State (ตัดรหัสผ่านออก) ---
+  const [hn, setHn] = useState('HN');
   const [nationalId, setNationalId] = useState('');
   const [phone, setPhone] = useState('');
-  const [password, setPassword] = useState('');
   const [title, setTitle] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -173,15 +175,70 @@ export default function SignupHnScreen({ navigation }: { navigation: any }) {
   // Calendar Modal State
   const [calendarVisible, setCalendarVisible] = useState(false);
 
+  // 🟢 ดึงข้อมูลเดิมมาแสดงอัตโนมัติเมื่อมี patientId
+  useEffect(() => {
+    if (patientId && patientId !== '--' && patientId !== '-') {
+      console.log('กำลังดึงข้อมูลผู้ป่วย ID:', patientId);
+      fetch(`http://localhost:3000/api/doctor/patient/${patientId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data) {
+            const formatHnVal = data.HN || data.hn || (data.PatientID ? `HN${String(data.PatientID).padStart(5, '0')}` : `HN${String(patientId).padStart(5, '0')}`);
+            setHn(formatHnVal);
+            setNationalId(data.National_ID || data.nationalId || '');
+            setPhone(data.Phone || data.phone || '');
+            setTitle(data.Title || data.title || '');
+            setFirstName(data.First_Name || data.firstName || '');
+            setLastName(data.Last_Name || data.lastName || '');
+            setGender(data.Gender || data.gender || '');
+
+            const rawDob = data.DOB || data.dob;
+            if (rawDob) {
+              const d = new Date(rawDob);
+              if (!isNaN(d.getTime())) {
+                setBirthDate(formatDate(d));
+              }
+            }
+
+            setNationality(data.Nationality || data.nationality || '');
+            setCaregiverName(data.Caregiver_Name || data.caregiverName || '');
+            setCaregiverRelation(data.Caregiver_Relation || data.caregiverRelation || '');
+            setCaregiverPhone(data.Caregiver_Phone || data.caregiverPhone || '');
+            setSeverity(data.Baseline_Assessment || data.baselineAssessment || '');
+            setSymptom(data.Medical_Condition || data.medicalCondition || '');
+            setDoctorNotes(data.Doctor_Notes || data.doctorNotes || '');
+          }
+        })
+        .catch((err) => console.error('Error fetching patient details:', err));
+    }
+  }, [patientId]);
+
+  const handleHnChange = (text: string) => {
+    if (!text.startsWith('HN')) {
+      setHn('HN');
+    } else {
+      setHn(text);
+    }
+  };
+
+  // 🟢 ฟังก์ชันส่งข้อมูลบันทึกและเด้งไปหน้า Patient ทันที
   const handleSubmit = async () => {
     if (!firstName || !lastName || !nationalId || !hn || !phone) {
-      Alert.alert('แจ้งเตือน', 'กรุณากรอกข้อมูลสำคัญให้ครบถ้วน (รหัส HN, เลขบัตรประชาชน, เบอร์โทร, ชื่อ, นามสกุล)');
+      const warningMsg = 'กรุณากรอกข้อมูลสำคัญให้ครบถ้วน (รหัส HN, เลขบัตรประชาชน, เบอร์โทร, ชื่อ, นามสกุล)';
+      if (Platform.OS === 'web') alert(warningMsg);
+      else Alert.alert('แจ้งเตือน', warningMsg);
       return;
     }
 
+    const endpoint = patientId
+      ? `http://localhost:3000/api/doctor/patient/${patientId}`
+      : 'http://localhost:3000/api/doctor/add-patient';
+
+    const method = patientId ? 'PUT' : 'POST';
+
     try {
-      const response = await fetch('http://localhost:3000/api/doctor/add-patient', {
-        method: 'POST',
+      const response = await fetch(endpoint, {
+        method: method,
         headers: {
           'Content-Type': 'application/json',
         },
@@ -189,19 +246,17 @@ export default function SignupHnScreen({ navigation }: { navigation: any }) {
           staffId: 1,
           hn: hn,
           phone: phone,
-          password: password,
-          title: title,
           firstName: firstName,
           lastName: lastName,
-          gender: gender,
-          dob: birthDate,
-          nationality: nationality,
-          caregiverName: caregiverName,       
-          caregiverRelation: caregiverRelation, 
-          caregiverPhone: caregiverPhone,     
-          baselineAssessment: severity,
-          medicalCondition: symptom,
-          doctorNotes: doctorNotes,
+          gender: gender || '',
+          dob: birthDate || null,
+          nationality: nationality || '',
+          caregiverName: caregiverName || '',
+          caregiverRelation: caregiverRelation || '',
+          caregiverPhone: caregiverPhone || '',
+          baselineAssessment: severity || '',
+          medicalCondition: symptom || '',
+          doctorNotes: doctorNotes || '',
           nationalId: nationalId,
         }),
       });
@@ -209,14 +264,29 @@ export default function SignupHnScreen({ navigation }: { navigation: any }) {
       const result = await response.json();
 
       if (response.ok) {
-        // เมื่อบันทึกสำเร็จ เปลี่ยนหน้าไป Patient ทันทีโดยไม่มีป๊อปอัพแจ้งเตือน
-        navigation.navigate('Patient');
+        // 🟢 บันทึกสำเร็จ เด้งข้ามไปหน้า Patient ทันทีโดยไม่มี Alert กวนใจ
+        if (navigation?.navigate) {
+          navigation.navigate('Patient');
+        }
       } else {
-        Alert.alert('ผิดพลาด', 'บันทึกไม่สำเร็จ: ' + (result.error || result.message));
+        const errorMsg = 'บันทึกไม่สำเร็จ: ' + (result.error || result.message);
+        if (Platform.OS === 'web') alert(errorMsg);
+        else Alert.alert('ผิดพลาด', errorMsg);
       }
     } catch (error) {
-      console.error('Error adding patient:', error);
-      Alert.alert('ข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ Backend ได้');
+      console.error('Error saving patient:', error);
+      const connErr = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ Backend ได้';
+      if (Platform.OS === 'web') alert(connErr);
+      else Alert.alert('ข้อผิดพลาด', connErr);
+    }
+  };
+
+  const handleSelectAll = (e: any) => {
+    if (Platform.OS === 'web') {
+      const target = e.target || e.nativeEvent?.target;
+      if (target && typeof target.select === 'function') {
+        target.select();
+      }
     }
   };
 
@@ -235,7 +305,7 @@ export default function SignupHnScreen({ navigation }: { navigation: any }) {
 
         <View style={styles.menuSection}>
           <Text style={styles.menuHeader}>เมนูระบบ</Text>
-          
+
           <TouchableOpacity
             style={styles.menuItem}
             onPress={() => navigation.navigate('Patient')}
@@ -274,7 +344,7 @@ export default function SignupHnScreen({ navigation }: { navigation: any }) {
             />
           </View>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.doctorProfile}
             onPress={() => navigation.navigate('ProfileDoctor')}
           >
@@ -293,7 +363,7 @@ export default function SignupHnScreen({ navigation }: { navigation: any }) {
         <ScrollView contentContainerStyle={styles.scrollContainer}>
           <View style={styles.card}>
             <Text style={styles.pageHeaderTitle}>
-              ระบุข้อมูลส่วนตัวผู้ป่วย (สร้างบัญชีเข้าใช้งานแอป)
+              {patientId ? '✏️ แก้ไขข้อมูลส่วนตัวผู้ป่วย' : 'ระบุข้อมูลส่วนตัวผู้ป่วย (สร้างบัญชีเข้าใช้งานแอป)'}
             </Text>
 
             {/* Row 1: HN & National ID */}
@@ -301,11 +371,13 @@ export default function SignupHnScreen({ navigation }: { navigation: any }) {
               <View style={styles.formGroup}>
                 <Text style={styles.label}>รหัส HN (Hospital Number)</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, patientId ? { backgroundColor: '#F1F5F9' } : {}]}
                   placeholder="เช่น HN66001"
                   placeholderTextColor="#94A3B8"
                   value={hn}
-                  onChangeText={setHn}
+                  onChangeText={handleHnChange}
+                  autoCapitalize="characters"
+                  editable={!patientId}
                 />
               </View>
               <View style={styles.formGroup}>
@@ -318,15 +390,18 @@ export default function SignupHnScreen({ navigation }: { navigation: any }) {
                   maxLength={17}
                   value={nationalId}
                   onChangeText={setNationalId}
+                  selectTextOnFocus={true}
+                  onFocus={handleSelectAll}
+                  onPressIn={handleSelectAll}
                 />
               </View>
             </View>
 
-            {/* Row 2: Highlight Phone & Password Box */}
+            {/* Row 2: Highlight Phone Box (ใช้เบอร์โทรอย่างเดียว) */}
             <View style={styles.highlightBox}>
               <View style={styles.formGroupFlex}>
                 <Text style={styles.highlightLabel}>
-                  📱 เบอร์โทรศัพท์ผู้ป่วย (ใช้เป็น Username)
+                  📱 เบอร์โทรศัพท์ผู้ป่วย (ใช้สำหรับเข้าสู่ระบบแอป)
                 </Text>
                 <TextInput
                   style={[styles.input, styles.bgWhite]}
@@ -335,19 +410,9 @@ export default function SignupHnScreen({ navigation }: { navigation: any }) {
                   keyboardType="phone-pad"
                   value={phone}
                   onChangeText={setPhone}
-                />
-              </View>
-              <View style={styles.formGroupFlex}>
-                <Text style={styles.highlightLabel}>
-                  🔑 รหัสผ่านเริ่มต้น (Initial Password)
-                </Text>
-                <TextInput
-                  style={[styles.input, styles.bgWhite]}
-                  placeholder="ตั้งรหัสผ่านให้ผู้ป่วยใช้เข้าแอป"
-                  placeholderTextColor="#94A3B8"
-                  secureTextEntry
-                  value={password}
-                  onChangeText={setPassword}
+                  selectTextOnFocus={true}
+                  onFocus={handleSelectAll}
+                  onPressIn={handleSelectAll}
                 />
               </View>
             </View>
@@ -377,6 +442,9 @@ export default function SignupHnScreen({ navigation }: { navigation: any }) {
                   placeholderTextColor="#94A3B8"
                   value={firstName}
                   onChangeText={setFirstName}
+                  selectTextOnFocus={true}
+                  onFocus={handleSelectAll}
+                  onPressIn={handleSelectAll}
                 />
               </View>
               <View style={styles.formGroup}>
@@ -387,6 +455,9 @@ export default function SignupHnScreen({ navigation }: { navigation: any }) {
                   placeholderTextColor="#94A3B8"
                   value={lastName}
                   onChangeText={setLastName}
+                  selectTextOnFocus={true}
+                  onFocus={handleSelectAll}
+                  onPressIn={handleSelectAll}
                 />
               </View>
             </View>
@@ -430,6 +501,9 @@ export default function SignupHnScreen({ navigation }: { navigation: any }) {
                   onChangeText={setNationality}
                   placeholder="สัญชาติ"
                   placeholderTextColor="#94A3B8"
+                  selectTextOnFocus={true}
+                  onFocus={handleSelectAll}
+                  onPressIn={handleSelectAll}
                 />
               </View>
             </View>
@@ -447,6 +521,9 @@ export default function SignupHnScreen({ navigation }: { navigation: any }) {
                   placeholderTextColor="#94A3B8"
                   value={caregiverName}
                   onChangeText={setCaregiverName}
+                  selectTextOnFocus={true}
+                  onFocus={handleSelectAll}
+                  onPressIn={handleSelectAll}
                 />
               </View>
               <View style={styles.formGroup}>
@@ -474,6 +551,9 @@ export default function SignupHnScreen({ navigation }: { navigation: any }) {
                   keyboardType="phone-pad"
                   value={caregiverPhone}
                   onChangeText={setCaregiverPhone}
+                  selectTextOnFocus={true}
+                  onFocus={handleSelectAll}
+                  onPressIn={handleSelectAll}
                 />
               </View>
             </View>
@@ -503,6 +583,9 @@ export default function SignupHnScreen({ navigation }: { navigation: any }) {
                   placeholderTextColor="#94A3B8"
                   value={symptom}
                   onChangeText={setSymptom}
+                  selectTextOnFocus={true}
+                  onFocus={handleSelectAll}
+                  onPressIn={handleSelectAll}
                 />
               </View>
             </View>
@@ -521,6 +604,9 @@ export default function SignupHnScreen({ navigation }: { navigation: any }) {
                 textAlignVertical="top"
                 value={doctorNotes}
                 onChangeText={setDoctorNotes}
+                selectTextOnFocus={true}
+                onFocus={handleSelectAll}
+                onPressIn={handleSelectAll}
               />
             </View>
 
@@ -536,7 +622,9 @@ export default function SignupHnScreen({ navigation }: { navigation: any }) {
                 style={styles.btnPrimary}
                 onPress={handleSubmit}
               >
-                <Text style={styles.btnPrimaryText}>ยืนยันและบันทึกประวัติ</Text>
+                <Text style={styles.btnPrimaryText}>
+                  {patientId ? 'บันทึกการแก้ไข' : 'ยืนยันและบันทึกประวัติ'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>

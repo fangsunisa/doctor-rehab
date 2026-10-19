@@ -9,13 +9,28 @@ import ProfileDoctorScreen from './profiledoctor';
 import PatientDashboardScreen from './patient';
 import PatientDashboard from './dashboard';
 import ExerciseScreen from './exercise';
-
+import RegisterDoctorScreen from './registerdoctor';
 
 const Stack = createNativeStackNavigator();
 
+const linking = {
+  prefixes: ['http://localhost:3001', 'http://localhost:3000'],
+  config: {
+    screens: {
+      Login: '', // 👈 ตั้งค่าเป็นค่าว่าง เพื่อให้ URL หลัก (เช่น http://localhost:3001/) เปิดหน้า Login ทันที
+      Signup: 'signup',
+      ProfileDoctor: 'profile-doctor',
+      Patient: 'patient',
+      Dashboard: 'dashboard',
+      Exercise: 'exercise',
+      RegisterDoctor: 'register-doctor',
+    },
+  },
+};
+
 export default function App() {
   return (
-    <NavigationContainer>
+    <NavigationContainer linking={linking}>
       <Stack.Navigator
         initialRouteName="Login"
         screenOptions={{ headerShown: false }}
@@ -48,6 +63,11 @@ export default function App() {
         <Stack.Screen
           name="Exercise"
           component={ExerciseScreen}
+        />
+
+        <Stack.Screen
+          name="RegisterDoctor"
+          component={RegisterDoctorScreen}
         />
       </Stack.Navigator>
     </NavigationContainer>

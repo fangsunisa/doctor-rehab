@@ -19,21 +19,52 @@ export default function LoginScreen({ navigation }: { navigation?: any }) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
-    if (!username || !password) {
+  const handleLogin = async () => {
+    // 1. ตรวจสอบว่ากรอกข้อมูลครบถ้วนหรือไม่
+    if (!username.trim() || !password.trim()) {
       Alert.alert('แจ้งเตือน', 'กรุณากรอกชื่อผู้ใช้งานและรหัสผ่าน');
       return;
     }
 
     setLoading(true);
 
-    setTimeout(() => {
+    try {
+      // 2. ส่งข้อมูลไปตรวจสอบที่ Backend (พอร์ต 3000)
+      const response = await fetch('http://localhost:3000/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: username.trim(),
+          password: password,
+        }),
+      });
+
+      const data = await response.json();
       setLoading(false);
-      // นำทางไปที่หน้า Patient (หน้ารายชื่อผู้ป่วย)
-      if (navigation?.navigate) {
-        navigation.navigate('Patient');
+
+      // 3. ตรวจสอบผลลัพธ์จาก Database
+      if (response.ok && data.success) {
+        // ถ้ารหัสถูกต้องและมีชื่อในฐานข้อมูล นำทางไปที่หน้า Patient
+        if (navigation?.navigate) {
+          navigation.navigate('Patient');
+        }
+      } else {
+        // แจ้งเตือนเมื่อข้อมูลไม่ถูกต้อง
+        Alert.alert(
+          'เข้าสู่ระบบไม่สำเร็จ',
+          data.message || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'
+        );
       }
-    }, 500);
+    } catch (error) {
+      setLoading(false);
+      console.error('Login Error:', error);
+      Alert.alert(
+        'เกิดข้อผิดพลาด',
+        'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ Backend ได้ (ตรวจสอบว่าเปิด Node.js หรือยัง)'
+      );
+    }
   };
 
   return (
@@ -128,6 +159,20 @@ export default function LoginScreen({ navigation }: { navigation?: any }) {
               ) : (
                 <Text style={styles.btnSubmitText}>เข้าสู่ระบบ (Login)</Text>
               )}
+            </TouchableOpacity>
+
+            {/* 🟢 ปุ่มลิงก์สำหรับไปหน้าสมัครสมาชิกแพทย์ใหม่ */}
+            <TouchableOpacity
+              style={styles.registerDoctorLinkWrapper}
+              onPress={() => {
+                if (navigation?.navigate) {
+                  navigation.navigate('RegisterDoctor');
+                }
+              }}
+            >
+              <Text style={styles.registerDoctorLinkText}>
+                📝 ลงทะเบียนแพทย์ / นักกายภาพบำบัดใหม่
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -277,5 +322,14 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  registerDoctorLinkWrapper: {
+    marginTop: 24,
+    alignItems: 'center',
+  },
+  registerDoctorLinkText: {
+    color: '#0288D1',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

@@ -1,280 +1,266 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Image,
   Platform,
   Pressable,
+  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 
-interface Patient {
+type Patient = {
   id: string;
-  time: string;
   name: string;
-  progress: number;
-  progressColor: string;
+  hn: string;
   symptom: string;
-}
+  workoutTime: string;
+  progress: number;
+};
 
-export default function PatientDashboardScreen({ navigation }: { navigation: any }) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [patientList, setPatientList] = useState<Patient[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+export default function PatientDashboardScreen({ navigation, route }: { navigation?: any; route?: any }) {
+  const [searchText, setSearchText] = useState('');
+  const [patients, setPatients] = useState<Patient[]>([]);
+  
+  // 🟢 เพิ่ม State สำหรับดึงข้อมูลหมอจาก Database
+  const [doctorName, setDoctorName] = useState('กำลังโหลด...');
+  const [doctorAvatar, setDoctorAvatar] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchPatients();
-  }, []);
+  // 🟢 ใช้ useFocusEffect เพื่อให้โหลดข้อมูลใหม่ทุกครั้งที่กลับมาหน้านี้
+  useFocusEffect(
+    useCallback(() => {
+      fetchPatients();
+      fetchDoctorProfile();
+    }, [])
+  );
+
+  // 🟢 ดึงข้อมูลโปรไฟล์หมอจาก Backend (StaffID = 1 หรือตามที่ล็อกอิน)
+  const fetchDoctorProfile = async () => {
+    try {
+      const response = await fetch('http://localhost:3000/api/doctor/profile/1');
+      const data = await response.json();
+      if (response.ok && data.First_Name) {
+        setDoctorName(`${data.First_Name} ${data.Last_Name || ''}`.trim());
+        if (data.Profile_Image) {
+          setDoctorAvatar(data.Profile_Image);
+        }
+      } else {
+        setDoctorName('หมอดิน');
+      }
+    } catch (error) {
+      console.error('Error fetching doctor profile:', error);
+      setDoctorName('หมอดิน');
+    }
+  };
 
   const fetchPatients = async () => {
     try {
-      setLoading(true);
       const response = await fetch('http://localhost:3000/api/doctor/patients');
       const data = await response.json();
 
       if (response.ok && Array.isArray(data)) {
         const formattedData: Patient[] = data.map((item: any) => ({
           id: item.PatientID ? item.PatientID.toString() : '',
-          time: '10:00 น.',
           name: `${item.First_Name || ''} ${item.Last_Name || ''}`.trim() || 'ไม่ระบุชื่อ',
+          hn: item.PatientID ? `HN${String(item.PatientID).padStart(5, '0')}` : 'HN-----',
+          symptom: item.Medical_Condition || 'ไม่ระบุอาการ',
+          workoutTime: '10:00 น.',
           progress: 0,
-          progressColor: '#0288D1',
-          symptom: item.Medical_Condition || item.Baseline_Assessment || 'ไม่ระบุอาการ',
-          dob: item.DOB || '',
-          caregiver: item.Caregiver_Name || '',
         }));
-        setPatientList(formattedData);
-      } else {
-        console.error('Failed to fetch patients:', data);
+        setPatients(formattedData);
       }
     } catch (error) {
-      console.error('Error fetching patient list:', error);
-    } finally {
-      setLoading(false);
+      console.error('Error fetching patients:', error);
     }
   };
 
-  const filteredPatients = patientList.filter(patient =>
-    patient.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    patient.id.includes(searchQuery)
-  );
+  const filteredPatients = patients.filter((patient) => {
+    const term = searchText.toLowerCase().trim();
+    return (
+      patient.name.toLowerCase().includes(term) ||
+      patient.hn.toLowerCase().includes(term) ||
+      patient.symptom.toLowerCase().includes(term)
+    );
+  });
 
-  const goToDashboard = () => {
-    navigation.navigate('Dashboard');
+  const goToDashboardView = (patient: Patient) => {
+    if (navigation?.navigate) {
+      navigation.navigate('Dashboard', {
+        patientId: patient.id,
+        patientName: patient.name,
+        hn: patient.hn,
+      });
+    }
+  };
+
+  const goToExerciseManage = (patient: Patient) => {
+    if (navigation?.navigate) {
+      navigation.navigate('Exercise', {
+        patientId: patient.id,
+        patientName: patient.name,
+        hn: patient.hn,
+      });
+    }
+  };
+
+  const goToProfileDoctor = () => {
+    if (navigation?.navigate) {
+      navigation.navigate('ProfileDoctor');
+    }
+  };
+
+  const goToSignup = () => {
+    if (navigation?.navigate) {
+      navigation.navigate('Signup');
+    }
+  };
+
+  const goToLogin = () => {
+    if (navigation?.navigate) {
+      navigation.navigate('Login');
+    }
   };
 
   return (
-    <View style={styles.appContainer}>
-      {/* 1. SIDEBAR MENU */}
-      <View style={styles.sidebar}>
-        <View style={styles.sidebarBrand}>
-          <Image
-            source={require('./img/logo.png')}
-            style={styles.brandLogo}
-            resizeMode="contain"
-          />
-          <Text style={styles.brandTitle}>ReMotion Rehab</Text>
-        </View>
-
-        <View style={styles.menuSection}>
-          <Text style={styles.menuHeader}>เมนูระบบ</Text>
-
-          <Pressable
-            style={[styles.menuItem, styles.menuItemActive]}
-            onPress={goToDashboard}
-          >
-            <Text style={[styles.menuItemText, styles.menuItemTextActive]}>
-              📊 แดชบอร์ด
-            </Text>
-          </Pressable>
-
-          <Pressable
-            style={styles.menuItem}
-            onPress={() => navigation.navigate('Exercise')}
-          >
-            <Text style={styles.menuItemText}>📁 คลังท่ากายภาพ</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.sidebarFooter}>
-          <Pressable
-            style={styles.logoutButton}
-            onPress={() => navigation.navigate('Login')}
-          >
-            <Text style={styles.logoutText}>ออกจากระบบ</Text>
-          </Pressable>
-        </View>
-      </View>
-
-      {/* 2. MAIN CONTENT WRAPPER */}
-      <View style={styles.mainContent}>
-        {/* TOP NAVIGATION BAR */}
-        <View style={styles.topNavbar}>
-          <View style={styles.searchBoxContainer}>
-            <Text style={styles.searchIcon}>🔍</Text>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="ค้นหาชื่อ หรือ รหัสผู้ป่วย..."
-              placeholderTextColor="#94A3B8"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.appContainer}>
+        {/* SIDEBAR */}
+        <View style={styles.sidebar}>
+          <View style={styles.sidebarBrand}>
+            <Image
+              source={require('./img/logo.png')}
+              style={styles.brandLogo}
+              resizeMode="contain"
             />
+            <Text style={styles.brandTitle}>ReMotion Rehab</Text>
           </View>
 
-          <TouchableOpacity
-            style={styles.doctorProfile}
-            onPress={() => navigation.navigate('ProfileDoctor')}
-          >
-            <View style={styles.doctorAvatar}>
-              <Image
-                source={require('./img/jenohighschool.jpg')}
-                style={styles.doctorAvatarImage}
-                resizeMode="cover"
+          <View style={styles.menuSection}>
+            <Text style={styles.menuHeader}>เมนูระบบ</Text>
+
+            <Pressable style={[styles.menuItem, styles.menuItemActive]}>
+              <Text style={styles.menuItemTextActive}>📊 แดชบอร์ด</Text>
+            </Pressable>
+
+            <Pressable style={styles.menuItem} onPress={() => navigation?.navigate('Exercise')}>
+              <Text style={styles.menuItemText}>📁 คลังท่ากายภาพ</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.sidebarFooter}>
+            <Pressable style={styles.logoutButton} onPress={goToLogin}>
+              <Text style={styles.logoutText}>ออกจากระบบ</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {/* MAIN CONTENT */}
+        <View style={styles.mainContent}>
+          {/* TOP NAVBAR */}
+          <View style={styles.topNavbar}>
+            <View style={styles.searchBoxContainer}>
+              <Text style={styles.searchIcon}>🔍</Text>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="ค้นหาชื่อ หรือ รหัสผู้ป่วย (เช่น HN00145)..."
+                placeholderTextColor="#94A3B8"
+                value={searchText}
+                onChangeText={setSearchText}
               />
             </View>
-            <Text style={styles.doctorName}>หมอดิน</Text>
-          </TouchableOpacity>
-        </View>
 
-        {/* SCROLLABLE BODY CONTENT */}
-        <ScrollView contentContainerStyle={styles.scrollContainer}>
-          <View style={styles.card}>
-            <View style={styles.pageHeaderRow}>
-              <View>
-                <Text style={styles.greetingTitle}>
-                  👋 สวัสดีตอนเช้าครับ
-                </Text>
-                <Text style={styles.greetingSub}>
-                  สรุปภาพรวมประจำวัน
-                </Text>
+            {/* 🟢 แสดงชื่อและรูปหมอที่ดึงมาจาก Database ล่าสุด */}
+            <Pressable style={styles.doctorProfile} onPress={goToProfileDoctor}>
+              <View style={styles.doctorAvatar}>
+                <Image
+                  source={
+                    doctorAvatar
+                      ? { uri: doctorAvatar }
+                      : require('./img/jenohighschool.jpg')
+                  }
+                  style={styles.doctorAvatarImage}
+                  resizeMode="cover"
+                />
               </View>
+              <Text style={styles.doctorName}>{doctorName}</Text>
+            </Pressable>
+          </View>
 
-              <TouchableOpacity
-                style={styles.btnAddPatient}
-                onPress={() => navigation.navigate('Signup')}
-              >
-                <Text style={styles.btnAddPatientText}>+ เพิ่มผู้ป่วยใหม่</Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.tableContainer}>
-                <View style={[styles.tableRow, styles.tableHeaderRow]}>
-                  <Text style={[styles.tableHeaderCell, { width: 130 }]}>
-                    เวลาที่ออกกำลังกาย
-                  </Text>
-                  <Text style={[styles.tableHeaderCell, { width: 200 }]}>
-                    ชื่อ-นามสกุล
-                  </Text>
-                  <Text style={[styles.tableHeaderCell, { width: 200 }]}>
-                    ความก้าวหน้า
-                  </Text>
-                  <Text style={[styles.tableHeaderCell, { width: 140 }]}>
-                    อาการ
-                  </Text>
-                  <Text
-                    style={[
-                      styles.tableHeaderCell,
-                      { width: 100, textAlign: 'center' },
-                    ]}
-                  >
-                    จัดการ
-                  </Text>
+          {/* SCROLLABLE BODY */}
+          <ScrollView contentContainerStyle={styles.scrollContainer}>
+            <View style={styles.card}>
+              <View style={styles.pageHeader}>
+                <View>
+                  <Text style={styles.pageTitle}>👋 สวัสดีตอนเช้าครับ</Text>
+                  <Text style={styles.pageSubTitle}>สรุปภาพรวมประจำวัน</Text>
                 </View>
 
-                {loading ? (
-                  <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyText}>กำลังโหลดข้อมูลผู้ป่วย...</Text>
-                  </View>
-                ) : filteredPatients.length > 0 ? (
-                  filteredPatients.map((item, index) => (
-                    <View
-                      key={item.id || index.toString()}
-                      style={[
-                        styles.tableRow,
-                        styles.tableBodyRow,
-                        index === filteredPatients.length - 1 && { borderBottomWidth: 0 },
-                      ]}
-                    >
-                      <Text style={[styles.tableCellText, { width: 130 }]}>
-                        {item.time}
-                      </Text>
-
-                      <Text
-                        style={[
-                          styles.tableCellText,
-                          { width: 200, fontWeight: '600', color: '#1E293B' },
-                        ]}
-                      >
-                        {item.name}
-                      </Text>
-
-                      <View
-                        style={[
-                          styles.tableCellContainer,
-                          {
-                            width: 200,
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            gap: 10,
-                          },
-                        ]}
-                      >
-                        <View style={styles.progressBarTrack}>
-                          <View
-                            style={[
-                              styles.progressBarFill,
-                              {
-                                width: `${item.progress}%`,
-                                backgroundColor: item.progressColor,
-                              },
-                            ]}
-                          />
-                        </View>
-                        <Text style={styles.progressText}>{item.progress}%</Text>
-                      </View>
-
-                      <Text style={[styles.tableCellText, { width: 140 }]}>
-                        {item.symptom}
-                      </Text>
-
-                      <TouchableOpacity
-                        style={[
-                          styles.tableCellContainer,
-                          { width: 100, alignItems: 'center' },
-                        ]}
-                        onPress={() => navigation.navigate('Dashboard', { patient: item })}
-                      >
-                        <Text style={styles.btnActionText}>ดูประวัติ</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ))
-                ) : (
-                  <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyText}>ยังไม่มีข้อมูลผู้ป่วยในระบบ</Text>
-                  </View>
-                )}
+                <Pressable style={styles.primaryButton} onPress={goToSignup}>
+                  <Text style={styles.primaryButtonText}>+ เพิ่มผู้ป่วยใหม่</Text>
+                </Pressable>
               </View>
-            </ScrollView>
 
-            <View style={styles.footerLinkWrapper}>
-              <TouchableOpacity onPress={fetchPatients}>
-                <Text style={styles.btnViewAllText}>
-                  🔄 รีเฟรชข้อมูลรายชื่อผู้ป่วย
-                </Text>
-              </TouchableOpacity>
+              {/* TABLE LIST */}
+              <View style={styles.tableHeader}>
+                <Text style={[styles.th, { flex: 2 }]}>เวลาที่ออกกำลังกาย ชื่อ-นามสกุล</Text>
+                <Text style={[styles.th, { flex: 1.5, textAlign: 'center' }]}>ความก้าวหน้า</Text>
+                <Text style={[styles.th, { flex: 1.5 }]}>อาการ</Text>
+                <Text style={[styles.th, { flex: 1, textAlign: 'right' }]}>จัดการ</Text>
+              </View>
+
+              {filteredPatients.map((patient) => (
+                <View key={patient.id} style={styles.tableRow}>
+                  <View style={{ flex: 2 }}>
+                    <Text style={styles.timeText}>{patient.workoutTime}</Text>
+                    <Pressable onPress={() => goToExerciseManage(patient)}>
+                      <Text style={styles.patientNameClickable}>{patient.name}</Text>
+                    </Pressable>
+                  </View>
+
+                  <View style={{ flex: 1.5, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
+                    <View style={styles.progressBarBg}>
+                      <View style={[styles.progressBarFill, { width: `${patient.progress}%` }]} />
+                    </View>
+                    <Text style={styles.progressText}>{patient.progress}%</Text>
+                  </View>
+
+                  <View style={{ flex: 1.5 }}>
+                    <Text style={styles.symptomText}>{patient.symptom}</Text>
+                  </View>
+
+                  <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                    <Pressable style={styles.actionLink} onPress={() => goToDashboardView(patient)}>
+                      <Text style={styles.actionLinkText}>ดูประวัติ</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ))}
+
+              {filteredPatients.length === 0 && (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyStateText}>ไม่พบรายชื่อผู้ป่วยที่ค้นหา</Text>
+                </View>
+              )}
+
+              <Pressable style={styles.refreshButton} onPress={fetchPatients}>
+                <Text style={styles.refreshButtonText}>🔄 รีเฟรชข้อมูลรายชื่อผู้ป่วย</Text>
+              </Pressable>
             </View>
-          </View>
-        </ScrollView>
+          </ScrollView>
+        </View>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#E0F7FA',
+  },
   appContainer: {
     flex: 1,
     flexDirection: 'row',
@@ -325,7 +311,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   menuItemActive: {
-    backgroundColor: '#E0F2FE',
+    backgroundColor: '#E3F2FD',
   },
   menuItemText: {
     fontSize: 14,
@@ -333,8 +319,9 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   menuItemTextActive: {
+    fontSize: 14,
     color: '#0288D1',
-    fontWeight: '700',
+    fontWeight: '600',
   },
   sidebarFooter: {
     borderTopWidth: 1,
@@ -389,15 +376,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    ...Platform.select({
+      web: { cursor: 'pointer' } as any,
+    }),
   },
   doctorAvatar: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#E2E8F0',
-    justifyContent: 'center',
-    alignItems: 'center',
     overflow: 'hidden',
+    backgroundColor: '#E2E8F0',
   },
   doctorAvatarImage: {
     width: '100%',
@@ -424,103 +412,106 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  pageHeaderRow: {
+  pageHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
-    flexWrap: 'wrap',
-    gap: 12,
+    marginBottom: 24,
   },
-  greetingTitle: {
-    fontSize: 18,
+  pageTitle: {
+    fontSize: 20,
     fontWeight: '700',
     color: '#1E293B',
   },
-  greetingSub: {
+  pageSubTitle: {
     fontSize: 13,
     color: '#64748B',
-    marginTop: 4,
+    marginTop: 2,
   },
-  btnAddPatient: {
-    backgroundColor: '#0288D1',
+  primaryButton: {
+    backgroundColor: '#0077B6',
     paddingVertical: 10,
-    paddingHorizontal: 20,
+    paddingHorizontal: 18,
     borderRadius: 8,
   },
-  btnAddPatientText: {
+  primaryButtonText: {
     color: '#FFFFFF',
+    fontWeight: '600',
     fontSize: 14,
-    fontWeight: '700',
   },
-  tableContainer: {
-    minWidth: 770,
-    marginTop: 10,
+  tableHeader: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingBottom: 12,
+    marginBottom: 12,
+  },
+  th: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748B',
   },
   tableRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 14,
-  },
-  tableHeaderRow: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-  },
-  tableHeaderCell: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#475569',
-  },
-  tableBodyRow: {
     borderBottomWidth: 1,
     borderBottomColor: '#F8FAFC',
   },
-  tableCellText: {
-    fontSize: 14,
-    color: '#334155',
+  timeText: {
+    fontSize: 12,
+    color: '#94A3B8',
   },
-  tableCellContainer: {
-    justifyContent: 'center',
+  patientNameClickable: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1E293B',
+    marginTop: 2,
   },
-  progressBarTrack: {
-    width: 120,
+  progressBarBg: {
+    width: 100,
     height: 8,
     backgroundColor: '#F1F5F9',
-    borderRadius: 10,
+    borderRadius: 4,
     overflow: 'hidden',
   },
   progressBarFill: {
     height: '100%',
-    borderRadius: 10,
+    backgroundColor: '#0288D1',
   },
   progressText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#475569',
+    color: '#64748B',
   },
-  btnActionText: {
-    color: '#0288D1',
-    fontWeight: '700',
+  symptomText: {
     fontSize: 14,
+    color: '#334155',
   },
-  emptyContainer: {
-    paddingVertical: 32,
+  actionLink: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  actionLinkText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0288D1',
+  },
+  emptyState: {
     alignItems: 'center',
-    justifyContent: 'center',
+    paddingVertical: 30,
   },
-  emptyText: {
-    fontSize: 14,
+  emptyStateText: {
     color: '#94A3B8',
+    fontSize: 14,
   },
-  footerLinkWrapper: {
+  refreshButton: {
     marginTop: 20,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    alignSelf: 'flex-start',
   },
-  btnViewAllText: {
-    color: '#0288D1',
+  refreshButtonText: {
     fontSize: 13,
+    color: '#0288D1',
     fontWeight: '600',
   },
 });

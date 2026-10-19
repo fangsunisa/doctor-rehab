@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
+  Alert,
   Image,
   Platform,
   Pressable,
@@ -11,29 +12,47 @@ import {
   View,
 } from 'react-native';
 
-export default function ProfileDoctorScreen({ navigation }: { navigation?: any }) {
-  const [licenseNo, setLicenseNo] = useState('');
-  const [fullName, setFullName] = useState('');
+const POSITION_OPTIONS = [
+  'นักกายภาพบำบัด ระดับปฏิบัติการ',
+  'นักกายภาพบำบัด ระดับชำนาญการ',
+  'นักกายภาพบำบัด ระดับชำนาญการพิเศษ',
+  'นักกายภาพบำบัด ระดับเชี่ยวชาญ',
+  'นักกายภาพบำบัด ระดับเชี่ยวชาญพิเศษ',
+];
+
+export default function ProfileDoctorScreen({ navigation, route }: { navigation?: any; route?: any }) {
+  const [licenseNo, setLicenseNo] = useState('ก. ');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [department, setDepartment] = useState('');
-  const [position, setPosition] = useState('');
+  const [position, setPosition] = useState(POSITION_OPTIONS[0]);
   const [profileImage, setProfileImage] = useState<string | null>(null);
 
-  // ดึงข้อมูลโปรไฟล์หมอจาก Backend ทันทีที่เปิดหน้าจอ
-  useEffect(() => {
-    fetchDoctorProfile();
-  }, []);
+  // ดึง staffId ที่ส่งมาจากหน้าอื่น (ถ้าไม่มีให้ fallback ไปที่ 1)
+  const staffId = route?.params?.staffId || 1;
 
+  useEffect(() => {
+    if (staffId) {
+      fetchDoctorProfile();
+    }
+  }, [staffId]);
+
+  // ดึงข้อมูลโปรไฟล์ตาม staffId จริงที่ล็อกอินหรือสมัครเข้ามา
   const fetchDoctorProfile = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/doctor/profile/1');
+      const response = await fetch(`http://localhost:3000/api/doctor/profile/${staffId}`);
       const data = await response.json();
 
-      if (response.ok) {
-        setLicenseNo(data.License_Number || '');
-        const nameCombined = `${data.First_Name || ''} ${data.Last_Name || ''}`.trim();
-        setFullName(nameCombined);
-        setDepartment(data.Department || '');
-        setPosition(data.Position || '');
+      if (response.ok && data) {
+        let rawLicense = data.License_Number || '';
+        let cleanNumber = rawLicense.replace(/^(PT-|PT|ก\.\s*)/i, '').trim();
+        rawLicense = 'ก. ' + cleanNumber;
+
+        setLicenseNo(rawLicense);
+        setFirstName(data.First_Name || '');
+        setLastName(data.Last_Name || '');
+        setDepartment(data.Department || 'แผนกเวชศาสตร์ฟื้นฟูและกายภาพบำบัด');
+        setPosition(data.Position || POSITION_OPTIONS[0]);
         if (data.Profile_Image) {
           setProfileImage(data.Profile_Image);
         }
@@ -43,10 +62,27 @@ export default function ProfileDoctorScreen({ navigation }: { navigation?: any }
     }
   };
 
-  // ฟังก์ชันเลือกรูปภาพสำหรับเวอร์ชันเว็บโดยเฉพาะ
+  const handleLicenseChange = (text: string) => {
+    if (!text.startsWith('ก. ')) {
+      setLicenseNo('ก. ');
+    } else {
+      setLicenseNo(text);
+    }
+  };
+
+  // ฟังก์ชันช่วยให้พอกดคลิกช่อง input แล้วไฮไลต์เลือกข้อความทั้งหมดให้ทันที (แก้/ลบง่ายในคลิกเดียว)
+  const handleSelectAll = (e: any) => {
+    if (Platform.OS === 'web') {
+      const target = e.target || e.nativeEvent?.target;
+      if (target && typeof target.select === 'function') {
+        target.select();
+      }
+    }
+  };
+
   const handlePickImage = () => {
     if (Platform.OS === 'web') {
-      const input = document.createElement('input');
+      const input = (window as any).document.createElement('input');
       input.type = 'file';
       input.accept = 'image/*';
       input.onchange = (e: any) => {
@@ -65,36 +101,24 @@ export default function ProfileDoctorScreen({ navigation }: { navigation?: any }
 
   const goToPatient = () => {
     if (navigation?.navigate) {
-      navigation.navigate('Patient');
+      // ส่ง staffId กลับไปด้วยเพื่อให้หน้า Patient แสดงข้อมูลหมอคนปัจจุบันถูกต้อง
+      navigation.navigate('Patient', { staffId: staffId });
     }
   };
 
-  const goToDashboard = () => {
-    if (navigation?.navigate) {
-      navigation.navigate('Dashboard');
-    }
-  };
-
-  const goToExercise = () => {
-    if (navigation?.navigate) {
-      navigation.navigate('Exercise');
-    }
-  };
-
-  const goToLogin = () => {
-    if (navigation?.navigate) {
-      navigation.navigate('Login');
-    }
-  };
-
-  // กดบันทึกเพื่ออัปเดตข้อมูลและรูปภาพลง MySQL
+  // เมื่อกดบันทึก จะอัปเดตข้อมูลและเด้งไปหน้า Patient ทันที (ไม่มีป๊อปอัพกวนใจ)
   const handleSave = async () => {
-    try {
-      const nameParts = fullName.trim().split(' ');
-      const firstName = nameParts[0] || '';
-      const lastName = nameParts.slice(1).join(' ') || '';
+    if (!firstName || !licenseNo || licenseNo === 'ก. ') {
+      if (Platform.OS === 'web') {
+        alert('กรุณากรอกเลขทะเบียนประกอบวิชาชีพและชื่อให้ครบถ้วน');
+      } else {
+        Alert.alert('แจ้งเตือน', 'กรุณากรอกเลขทะเบียนประกอบวิชาชีพและชื่อให้ครบถ้วน');
+      }
+      return;
+    }
 
-      await fetch('http://localhost:3000/api/doctor/profile/1', {
+    try {
+      const response = await fetch(`http://localhost:3000/api/doctor/profile/${staffId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -108,12 +132,26 @@ export default function ProfileDoctorScreen({ navigation }: { navigation?: any }
           profileImage: profileImage,
         }),
       });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        // 🟢 บันทึกสำเร็จแล้วเด้งไปหน้า Patient ทันทีโดยไม่มีป๊อปอัพแจ้งเตือน
+        goToPatient();
+      } else {
+        const errorMsg = 'อัปเดตไม่สำเร็จ: ' + (result.error || result.message);
+        if (Platform.OS === 'web') alert(errorMsg);
+        else Alert.alert('ผิดพลาด', errorMsg);
+      }
     } catch (error) {
       console.error('Error updating profile:', error);
+      const connErr = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ Backend ได้';
+      if (Platform.OS === 'web') alert(connErr);
+      else Alert.alert('ข้อผิดพลาด', connErr);
     }
-
-    goToPatient();
   };
+
+  const fullNameDisplay = `${firstName} ${lastName}`.trim();
 
   return (
     <View style={styles.appContainer}>
@@ -131,17 +169,17 @@ export default function ProfileDoctorScreen({ navigation }: { navigation?: any }
         <View style={styles.menuSection}>
           <Text style={styles.menuHeader}>เมนูระบบ</Text>
           
-          <Pressable style={styles.menuItem} onPress={goToDashboard}>
+          <Pressable style={styles.menuItem} onPress={goToPatient}>
             <Text style={styles.menuItemText}>📊 แดชบอร์ด</Text>
           </Pressable>
 
-          <Pressable style={styles.menuItem} onPress={goToExercise}>
+          <Pressable style={styles.menuItem} onPress={() => navigation?.navigate('Exercise', { staffId: staffId })}>
             <Text style={styles.menuItemText}>📁 คลังท่ากายภาพ</Text>
           </Pressable>
         </View>
 
         <View style={styles.sidebarFooter}>
-          <Pressable style={styles.logoutButton} onPress={goToLogin}>
+          <Pressable style={styles.logoutButton} onPress={() => navigation?.navigate('Login')}>
             <Text style={styles.logoutText}>ออกจากระบบ</Text>
           </Pressable>
         </View>
@@ -167,7 +205,7 @@ export default function ProfileDoctorScreen({ navigation }: { navigation?: any }
                 resizeMode="cover"
               />
             </View>
-            <Text style={styles.doctorName}>หมอดิน</Text>
+            <Text style={styles.doctorName}>{fullNameDisplay || 'กำลังโหลด...'}</Text>
           </View>
         </View>
 
@@ -195,12 +233,12 @@ export default function ProfileDoctorScreen({ navigation }: { navigation?: any }
               </View>
 
               <View style={styles.profileTextWrapper}>
-                <Text style={styles.doctorNameMain}>นักกายภาพ หมอดิน</Text>
+                <Text style={styles.doctorNameMain}>{fullNameDisplay || 'กำลังโหลด...'}</Text>
                 <Text style={styles.doctorDeptMain}>
-                  แผนกเวชศาสตร์ฟื้นฟูและกายภาพบำบัด
+                  {department || 'แผนกเวชศาสตร์ฟื้นฟูและกายภาพบำบัด'}
                 </Text>
                 <Text style={styles.doctorDeptSub}>
-                  (Rehabilitation Department)
+                  {position ? `(${position})` : '(Rehabilitation Department)'}
                 </Text>
               </View>
             </View>
@@ -210,27 +248,47 @@ export default function ProfileDoctorScreen({ navigation }: { navigation?: any }
               ข้อมูลทางวิชาชีพและโรงพยาบาล
             </Text>
 
-            {/* Form Grid (2 Columns) */}
+            {/* Form Grid */}
             <View style={styles.formGrid2}>
               <View style={styles.formGroup}>
                 <Text style={styles.label}>เลขทะเบียนประกอบวิชาชีพ</Text>
                 <TextInput
                   style={styles.input}
                   value={licenseNo}
-                  onChangeText={setLicenseNo}
-                  placeholder="กรอกเลขทะเบียนประกอบวิชาชีพ..."
+                  onChangeText={handleLicenseChange}
+                  placeholder="ก. 54321"
                   placeholderTextColor="#94A3B8"
+                  selectTextOnFocus={true}
+                  onFocus={handleSelectAll}
+                  onPressIn={handleSelectAll}
                 />
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.label}>ชื่อ-นามสกุล</Text>
+                <Text style={styles.label}>ชื่อ</Text>
                 <TextInput
                   style={styles.input}
-                  value={fullName}
-                  onChangeText={setFullName}
-                  placeholder="กรอกชื่อ-นามสกุล..."
+                  value={firstName}
+                  onChangeText={setFirstName}
+                  placeholder="กรอกชื่อ..."
                   placeholderTextColor="#94A3B8"
+                  selectTextOnFocus={true}
+                  onFocus={handleSelectAll}
+                  onPressIn={handleSelectAll}
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>นามสกุล</Text>
+                <TextInput
+                  style={styles.input}
+                  value={lastName}
+                  onChangeText={setLastName}
+                  placeholder="กรอกนามสกุล..."
+                  placeholderTextColor="#94A3B8"
+                  selectTextOnFocus={true}
+                  onFocus={handleSelectAll}
+                  onPressIn={handleSelectAll}
                 />
               </View>
 
@@ -242,18 +300,50 @@ export default function ProfileDoctorScreen({ navigation }: { navigation?: any }
                   onChangeText={setDepartment}
                   placeholder="กรอกแผนกสังกัด..."
                   placeholderTextColor="#94A3B8"
+                  selectTextOnFocus={true}
+                  onFocus={handleSelectAll}
+                  onPressIn={handleSelectAll}
                 />
               </View>
 
-              <View style={styles.formGroup}>
+              {/* ตำแหน่งทางวิชาชีพ แบบ Dropdown */}
+              <View style={styles.formGroupFull}>
                 <Text style={styles.label}>ตำแหน่งทางวิชาชีพ</Text>
-                <TextInput
-                  style={styles.input}
-                  value={position}
-                  onChangeText={setPosition}
-                  placeholder="กรอกตำแหน่งทางวิชาชีพ..."
-                  placeholderTextColor="#94A3B8"
-                />
+                {Platform.OS === 'web' ? (
+                  <select
+                    value={position}
+                    onChange={(e: any) => setPosition(e.target.value)}
+                    style={styles.selectWeb}
+                  >
+                    {POSITION_OPTIONS.map((opt, idx) => (
+                      <option key={idx} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <View style={styles.pickerWrapperMobile}>
+                    {POSITION_OPTIONS.map((opt, idx) => (
+                      <TouchableOpacity
+                        key={idx}
+                        style={[
+                          styles.optionBtnMobile,
+                          position === opt && styles.optionBtnMobileSelected,
+                        ]}
+                        onPress={() => setPosition(opt)}
+                      >
+                        <Text
+                          style={[
+                            styles.optionTextMobile,
+                            position === opt && styles.optionTextMobileSelected,
+                          ]}
+                        >
+                          {position === opt ? '🔘 ' : '⚪ '} {opt}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
               </View>
             </View>
 
@@ -493,6 +583,10 @@ const styles = StyleSheet.create({
     minWidth: 260,
     marginBottom: 15,
   },
+  formGroupFull: {
+    width: '100%',
+    marginBottom: 15,
+  },
   label: {
     fontSize: 13,
     fontWeight: '600',
@@ -511,6 +605,41 @@ const styles = StyleSheet.create({
     ...Platform.select({
       web: { outlineStyle: 'none' } as any,
     }),
+  },
+  selectWeb: {
+    width: '100%',
+    height: '42px',
+    border: '1px solid #CBD5E1',
+    borderRadius: '8px',
+    paddingLeft: '12px',
+    paddingRight: '12px',
+    fontSize: '14px',
+    color: '#1E293B',
+    backgroundColor: '#FFFFFF',
+    outline: 'none',
+    cursor: 'pointer',
+  } as any,
+  pickerWrapperMobile: {
+    gap: 8,
+  },
+  optionBtnMobile: {
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#FFFFFF',
+  },
+  optionBtnMobileSelected: {
+    borderColor: '#0288D1',
+    backgroundColor: '#E0F7FA',
+  },
+  optionTextMobile: {
+    fontSize: 14,
+    color: '#475569',
+  },
+  optionTextMobileSelected: {
+    color: '#0288D1',
+    fontWeight: '700',
   },
   actionRow: {
     flexDirection: 'row',

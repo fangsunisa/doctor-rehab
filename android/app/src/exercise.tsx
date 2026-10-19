@@ -244,7 +244,6 @@ export default function ExerciseScreen({ navigation, route }: { navigation: any;
   const [patientSelectModalVisible, setPatientSelectModalVisible] = useState(false);
   const [patientsList, setPatientsList] = useState<PatientItem[]>([]);
 
-  // อัปเดตข้อมูลผู้ป่วยทันทีที่มีการส่ง params ใหม่มา
   useEffect(() => {
     if (params.patientName) {
       setDisplayPatientName(params.patientName);
@@ -253,7 +252,6 @@ export default function ExerciseScreen({ navigation, route }: { navigation: any;
     }
   }, [params.patientName, params.hn, params.patientId]);
 
-  // โหลดรายชื่อคนไข้ทั้งหมดมารองรับการเลือก
   useEffect(() => {
     fetch('http://localhost:3000/api/doctor/patients')
       .then((res) => res.json())
@@ -267,7 +265,6 @@ export default function ExerciseScreen({ navigation, route }: { navigation: any;
           }));
           setPatientsList(formatted);
 
-          // ถ้าไม่มีข้อมูลถูกส่งมาทาง params เลย ให้ตั้งค่าเป็นผู้ป่วยคนแรกในฐานข้อมูล
           if (!params.patientName && formatted.length > 0) {
             setDisplayPatientName(formatted[0].name);
             setDisplayHN(formatted[0].hn);
@@ -537,7 +534,9 @@ export default function ExerciseScreen({ navigation, route }: { navigation: any;
 
           {/* SCROLLABLE CONTENT BODY */}
           <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
-            <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
+            
+            {/* 🟢 ปุ่มย้อนกลับที่แก้ไขแล้ว: กดแล้วพาไปหน้ารายชื่อผู้ป่วย (Patient) เสมอ */}
+            <Pressable style={styles.backButton} onPress={() => navigation.navigate('Patient')}>
               <Text style={styles.backButtonText}>&lt; กลับไปหน้ารายชื่อทั้งหมด</Text>
             </Pressable>
 

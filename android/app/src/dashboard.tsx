@@ -11,10 +11,26 @@ import {
   View,
 } from 'react-native';
 
-const screenWidth = Dimensions.get('window').width;
-
 export default function PatientDashboard({ navigation, route }: { navigation: any, route: any }) {
-  // ฟังก์ชันคำนวณอายุจากวันเกิด (dob)
+  // รับ patientId และ patientObj จาก params
+  const paramPatientId = route?.params?.patientId || route?.params?.patient?.id;
+  const initialPatient = route?.params?.patient;
+
+  // State สำหรับเก็บข้อมูลผู้ป่วย
+  const [patientData, setPatientData] = useState<any>({
+    id: paramPatientId || '-',
+    name: initialPatient?.name || route?.params?.patientName || 'กำลังโหลดข้อมูล...',
+    hn: initialPatient?.hn || route?.params?.hn || '-',
+    symptom: initialPatient?.symptom || '-',
+    age: '-',
+    caregiver: '-',
+  });
+
+  const [selectedTab, setSelectedTab] = useState<'day' | 'week' | 'month'>('day');
+  const [dashboardData, setDashboardData] = useState<any[]>([]);
+  const [searchText, setSearchText] = useState('');
+
+  // ฟังก์ชันคำนวณอายุจากวันเกิด (DOB)
   const calculateAge = (dobString: string) => {
     if (!dobString) return '-';
     const birthDate = new Date(dobString);
@@ -28,46 +44,47 @@ export default function PatientDashboard({ navigation, route }: { navigation: an
     return `${age} ปี`;
   };
 
-  // ดึงข้อมูล patient ที่ส่งผ่านมา (รองรับอายุและผู้ดูแล)
-  const patientData = route?.params?.patient || {
-    name: 'กำลังรอข้อมูลผู้ป่วย...',
-    id: '-',
-    symptom: '-',
-    age: '-',
-    caregiver: '-',
-  };
-
-  const displayAge = patientData.age && patientData.age !== '-' 
-    ? patientData.age 
-    : calculateAge(patientData.dob || patientData.DOB);
-
-  const displayCaregiver = patientData.caregiver || patientData.caregiverName || patientData.Caregiver_Name || '-';
-
-  const [selectedTab, setSelectedTab] = useState<'day' | 'week' | 'month'>('day');
-  const [dashboardData, setDashboardData] = useState<any[]>([]);
-
-  // ฟังก์ชันแปลงเลข ID เช่น 1 หรือ 15 ให้เป็นรูปแบบ HN00001 หรือ HN00015
-  const formatHN = (id: any) => {
+  // ฟังก์ชันแปลงเลข ID ให้เป็นรูปแบบ HN (เช่น HN00026)
+  const formatHN = (id: any, rawHn?: string) => {
+    if (rawHn && rawHn !== '-') return rawHn;
     if (!id || id === '-') return '-';
     if (String(id).startsWith('HN')) return id;
     const paddedId = String(id).padStart(5, '0');
     return `HN${paddedId}`;
   };
 
-  // ดึงข้อมูลผลการฝึกและสถิติจาก Backend ตามรหัสคนไข้
+  // 🟢 ดึงข้อมูลส่วนตัวผู้ป่วยจากตาราง patient ใน phpMyAdmin
   useEffect(() => {
-    if (patientData && patientData.id && patientData.id !== '-') {
-      fetch(`http://localhost:3000/api/doctor/patient/${patientData.id}/dashboard`)
+    const targetId = paramPatientId;
+    if (targetId && targetId !== '-') {
+      // 1. ดึงข้อมูลส่วนตัวผู้ป่วย
+      fetch(`http://localhost:3000/api/doctor/patient/${targetId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && !data.error) {
+            // ดึงค่าตามชื่อคอลัมน์จริงใน Database (PatientID, First_Name, Last_Name, Medical_Condition, DOB, Caregiver_Name)
+            const fullName = `${data.First_Name || ''} ${data.Last_Name || ''}`.trim();
+            setPatientData({
+              id: data.PatientID || targetId,
+              name: fullName || initialPatient?.name || 'ไม่ระบุชื่อ',
+              hn: data.HN || formatHN(data.PatientID || targetId),
+              symptom: data.Medical_Condition || initialPatient?.symptom || 'ไม่ระบุอาการ',
+              age: calculateAge(data.DOB),
+              caregiver: data.Caregiver_Name || 'ไม่ระบุผู้ดูแล',
+            });
+          }
+        })
+        .catch((err) => console.error('Error fetching patient profile:', err));
+
+      // 2. ดึงข้อมูลสถิติกราฟ
+      fetch(`http://localhost:3000/api/doctor/patient/${targetId}/dashboard`)
         .then((res) => res.json())
         .then((data) => {
           setDashboardData(data);
-          console.log('ข้อมูลแดชบอร์ดคนไข้:', data);
         })
         .catch((err) => console.error('Error fetching dashboard data:', err));
     }
-  }, [patientData.id]);
-
-  const [searchText, setSearchText] = useState('');
+  }, [paramPatientId]);
 
   const yAxisLabels = selectedTab === 'day' 
     ? ['12', '9', '6', '3', '0'] 
@@ -89,7 +106,10 @@ export default function PatientDashboard({ navigation, route }: { navigation: an
 
         <View style={styles.menuSection}>
           <Text style={styles.menuHeader}>เมนูระบบ</Text>
-          <Pressable style={[styles.menuItem, styles.menuItemActive]}>
+          <Pressable 
+            style={[styles.menuItem, styles.menuItemActive]}
+            onPress={() => navigation.navigate('Patient')}
+          >
             <Text style={styles.menuItemTextActive}>📊 แดชบอร์ด</Text>
           </Pressable>
 
@@ -97,7 +117,7 @@ export default function PatientDashboard({ navigation, route }: { navigation: an
             style={styles.menuItem}
             onPress={() => navigation.navigate('Exercise', {
               patientName: patientData.name,
-              hn: formatHN(patientData.id),
+              hn: formatHN(patientData.id, patientData.hn),
               patientId: patientData.id,
             })}
           >
@@ -154,7 +174,7 @@ export default function PatientDashboard({ navigation, route }: { navigation: an
           <View style={styles.topBar}>
             <Pressable 
               style={styles.backButton}
-              onPress={() => navigation.goBack()}
+              onPress={() => navigation.navigate('Patient')}
             >
               <Text style={styles.backButtonText}>&lt; กลับไปหน้ารายชื่อทั้งหมด</Text>
             </Pressable>
@@ -164,7 +184,7 @@ export default function PatientDashboard({ navigation, route }: { navigation: an
                 style={styles.btnPrimary}
                 onPress={() => navigation.navigate('Exercise', {
                   patientName: patientData.name,
-                  hn: formatHN(patientData.id),
+                  hn: formatHN(patientData.id, patientData.hn),
                   patientId: patientData.id,
                 })}
               >
@@ -175,7 +195,14 @@ export default function PatientDashboard({ navigation, route }: { navigation: an
 
               <Pressable 
                 style={styles.btnSecondary}
-                onPress={() => navigation.navigate('Signup')}
+                onPress={() => {
+                  const targetPatientId = patientData.id;
+                  if (!targetPatientId || targetPatientId === '-') {
+                    alert('ไม่พบรหัสผู้ป่วยสำหรับแก้ไขข้อมูล');
+                    return;
+                  }
+                  navigation.navigate('Signup', { patientId: targetPatientId });
+                }}
               >
                 <Text style={styles.btnSecondaryText}>
                   ✏️ แก้ไขข้อมูล
@@ -192,10 +219,10 @@ export default function PatientDashboard({ navigation, route }: { navigation: an
               </View>
               <View style={styles.patientDetails}>
                 <Text style={styles.patientNameTitle}>
-                  ข้อมูลส่วนตัว: <Text style={styles.highlightText}>{patientData.name}</Text> (HN: {formatHN(patientData.id)})
+                  ข้อมูลส่วนตัว: <Text style={styles.highlightText}>{patientData.name}</Text> (HN: {formatHN(patientData.id, patientData.hn)})
                 </Text>
                 <Text style={styles.patientSubText}>
-                  อายุ: {displayAge}  |  อาการหลัก: {patientData.symptom}  |  ผู้ดูแล: {displayCaregiver}
+                  อายุ: {patientData.age}  |  อาการหลัก: {patientData.symptom}  |  ผู้ดูแล: {patientData.caregiver}
                 </Text>
               </View>
             </View>
@@ -269,7 +296,7 @@ export default function PatientDashboard({ navigation, route }: { navigation: an
               </View>
             </View>
 
-            {/* โครงสร้างเส้นประแกน Y แบบ Custom */}
+            {/* โครงสร้างเส้นประแกน Y */}
             <View style={styles.customGridContainer}>
               {yAxisLabels.map((label, index) => (
                 <View key={index} style={styles.gridRow}>
