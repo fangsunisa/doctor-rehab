@@ -151,10 +151,11 @@ function BirthCalendarModal({
 export default function SignupHnScreen({ route, navigation }: { route?: any; navigation: any }) {
   const patientId = route?.params?.patientId || (Platform.OS === 'web' ? new URLSearchParams(window.location.search).get('patientId') : null);
 
-  // --- Form State (ตัดรหัสผ่านออก) ---
+  // --- Form State (เพิ่ม password กลับเข้ามา) ---
   const [hn, setHn] = useState('HN');
   const [nationalId, setNationalId] = useState('');
   const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState(''); // 🟢 เพิ่ม State สำหรับรหัสผ่าน
   const [title, setTitle] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -179,6 +180,7 @@ export default function SignupHnScreen({ route, navigation }: { route?: any; nav
   useEffect(() => {
     if (patientId && patientId !== '--' && patientId !== '-') {
       console.log('กำลังดึงข้อมูลผู้ป่วย ID:', patientId);
+      console.log('รหัสผ่านที่จะส่งไป:', password);
       fetch(`http://localhost:3000/api/doctor/patient/${patientId}`)
         .then((res) => res.json())
         .then((data) => {
@@ -187,6 +189,7 @@ export default function SignupHnScreen({ route, navigation }: { route?: any; nav
             setHn(formatHnVal);
             setNationalId(data.National_ID || data.nationalId || '');
             setPhone(data.Phone || data.phone || '');
+            setPassword(data.Password || data.password || ''); // 🟢 ดึงรหัสผ่านเดิมมาแสดง (ถ้ามี)
             setTitle(data.Title || data.title || '');
             setFirstName(data.First_Name || data.firstName || '');
             setLastName(data.Last_Name || data.lastName || '');
@@ -221,8 +224,7 @@ export default function SignupHnScreen({ route, navigation }: { route?: any; nav
     }
   };
 
-  // 🟢 ฟังก์ชันส่งข้อมูลบันทึกและเด้งไปหน้า Patient ทันที
-  const handleSubmit = async () => {
+const handleSubmit = async () => {
     if (!firstName || !lastName || !nationalId || !hn || !phone) {
       const warningMsg = 'กรุณากรอกข้อมูลสำคัญให้ครบถ้วน (รหัส HN, เลขบัตรประชาชน, เบอร์โทร, ชื่อ, นามสกุล)';
       if (Platform.OS === 'web') alert(warningMsg);
@@ -236,7 +238,7 @@ export default function SignupHnScreen({ route, navigation }: { route?: any; nav
 
     const method = patientId ? 'PUT' : 'POST';
 
-    try {
+   try {
       const response = await fetch(endpoint, {
         method: method,
         headers: {
@@ -246,6 +248,7 @@ export default function SignupHnScreen({ route, navigation }: { route?: any; nav
           staffId: 1,
           hn: hn,
           phone: phone,
+          password: password, // 🟢 ต้องมีบรรทัดนี้ เพื่อส่งรหัสผ่านไปที่ Backend
           firstName: firstName,
           lastName: lastName,
           gender: gender || '',
@@ -260,11 +263,10 @@ export default function SignupHnScreen({ route, navigation }: { route?: any; nav
           nationalId: nationalId,
         }),
       });
-
+      
       const result = await response.json();
 
       if (response.ok) {
-        // 🟢 บันทึกสำเร็จ เด้งข้ามไปหน้า Patient ทันทีโดยไม่มี Alert กวนใจ
         if (navigation?.navigate) {
           navigation.navigate('Patient');
         }
@@ -397,23 +399,41 @@ export default function SignupHnScreen({ route, navigation }: { route?: any; nav
               </View>
             </View>
 
-            {/* Row 2: Highlight Phone Box (ใช้เบอร์โทรอย่างเดียว) */}
+            {/* Row 2: Highlight Phone & Password Box */}
             <View style={styles.highlightBox}>
-              <View style={styles.formGroupFlex}>
-                <Text style={styles.highlightLabel}>
-                  📱 เบอร์โทรศัพท์ผู้ป่วย (ใช้สำหรับเข้าสู่ระบบแอป)
-                </Text>
-                <TextInput
-                  style={[styles.input, styles.bgWhite]}
-                  placeholder="เช่น 0812345678"
-                  placeholderTextColor="#94A3B8"
-                  keyboardType="phone-pad"
-                  value={phone}
-                  onChangeText={setPhone}
-                  selectTextOnFocus={true}
-                  onFocus={handleSelectAll}
-                  onPressIn={handleSelectAll}
-                />
+              <View style={styles.grid2}>
+                <View style={styles.formGroupFlex}>
+                  <Text style={styles.highlightLabel}>
+                    📱 เบอร์โทรศัพท์ผู้ป่วย (ใช้สำหรับเข้าสู่ระบบแอป)
+                  </Text>
+                  <TextInput
+                    style={[styles.input, styles.bgWhite]}
+                    placeholder="เช่น 0812345678"
+                    placeholderTextColor="#94A3B8"
+                    keyboardType="phone-pad"
+                    value={phone}
+                    onChangeText={setPhone}
+                    selectTextOnFocus={true}
+                    onFocus={handleSelectAll}
+                    onPressIn={handleSelectAll}
+                  />
+                </View>
+                <View style={styles.formGroupFlex}>
+                  <Text style={styles.highlightLabel}>
+                    🔒 รหัสผ่านสำหรับเข้าสู่ระบบแอป (Password)
+                  </Text>
+                  <TextInput
+                    style={[styles.input, styles.bgWhite]}
+                    placeholder="กำหนดรหัสผ่าน"
+                    placeholderTextColor="#94A3B8"
+                    secureTextEntry
+                    value={password}
+                    onChangeText={setPassword}
+                    selectTextOnFocus={true}
+                    onFocus={handleSelectAll}
+                    onPressIn={handleSelectAll}
+                  />
+                </View>
               </View>
             </View>
 
@@ -841,8 +861,6 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   highlightBox: {
-    flexDirection: 'row',
-    gap: 16,
     backgroundColor: '#E0F2FE',
     padding: 16,
     borderRadius: 12,
