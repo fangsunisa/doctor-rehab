@@ -20,6 +20,7 @@ type Exercise = {
   name: string;
   category: Category;
   video: string;
+  poseType: string;
 };
 
 type SelectedExercise = {
@@ -41,7 +42,7 @@ const videoSources: Record<string, any> = {
   'gait_toe_walk.mp4': require('./video/gait_toe_walk.mp4'),
   'hamstring_curls.mp4': require('./video/hamstring_curls.mp4'),
   'heel_raise.mp4': require('./video/heel_raise.mp4'),
-  'heel_toe_walking.mp4': require('./video/heel_toe _walking.mp4'),
+  'heel_toe_walking.mp4': require('./video/heel_toe_walking.mp4'),
   'seated_knee_extensions.mp4': require('./video/seated_knee_extensions.mp4'),
   'side_leg_raise.mp4': require('./video/side_leg_raise.mp4'),
   'sit_to_stand.mp4': require('./video/sit_to_stand.mp4'),
@@ -52,18 +53,18 @@ const videoSources: Record<string, any> = {
 };
 
 const initialExercises: Exercise[] = [
-  { id: 1, name: 'ท่านั่งเหยียดเข่า', category: 'easy', video: 'seated_knee_extensions.mp4' },
-  { id: 2, name: 'ท่างอเข่า', category: 'easy', video: 'hamstring_curls.mp4' },
-  { id: 3, name: 'ท่ายกขาออกไปด้านข้าง', category: 'easy', video: 'side_leg_raise.mp4' },
-  { id: 4, name: 'ท่างอสะโพก', category: 'easy', video: 'standing_knee_raise.mp4' },
-  { id: 5, name: 'ท่าลุกยืนและนั่งลงบนเก้าอี้', category: 'easy', video: 'sit_to_stand.mp4' },
-  { id: 6, name: 'ท่าสควอท', category: 'hard', video: 'squat.mp4' },
-  { id: 7, name: 'ท่าเขย่งปลายเท้า', category: 'hard', video: 'toe_raises.mp4' },
-  { id: 8, name: 'ท่าเขย่งส้นเท้า', category: 'hard', video: 'calf_raises.mp4' },
-  { id: 9, name: 'ท่าก้าวชิด', category: 'hard', video: 'step_touch.mp4' },
-  { id: 10, name: 'ท่าเดินตรงด้วยส้นเท้า', category: 'hard', video: 'gait_toe_walk.mp4' },
-  { id: 11, name: 'ท่ายืนวางส้นเท้าต่อกับปลายเท้า', category: 'hard', video: 'heel_toe_walking.mp4' },
-  { id: 12, name: 'ท่ายืนตรงเดินด้วยปลายเท้า', category: 'hard', video: 'gait_toe_walk.mp4' },
+  { id: 1, name: 'ท่ายืนวางส้นเท้าต่อกับปลายเท้า', category: 'hard', video: 'heel_toe_walking.mp4', poseType: 'balance_step' },
+  { id: 2, name: 'ท่าเขย่งปลายเท้า', category: 'hard', video: 'heel_raise.mp4', poseType: 'calf_raise' },
+  { id: 3, name: 'ท่ายืนตรงเดินด้วยปลายเท้า', category: 'hard', video: 'gait_toe_walk.mp4', poseType: 'balance_step' },
+  { id: 4, name: 'ท่าเดินตรงด้วยส้นเท้า', category: 'hard', video: 'calf_raises.mp4', poseType: 'calf_raise' },
+  { id: 5, name: 'งอเข่าไปด้านหลัง', category: 'easy', video: 'hamstring_curls.mp4', poseType: 'knee_bend' },
+  { id: 6, name: 'ยืดขาออกไปด้านข้าง', category: 'easy', video: 'side_leg_raise.mp4', poseType: 'leg_raise' },
+  { id: 7, name: 'งอเข่าไปด้านหน้า', category: 'easy', video: 'standing_knee_raise.mp4', poseType: 'knee_bend' },
+  { id: 8, name: 'ท่านั่งเหยียดเข่า', category: 'easy', video: 'seated_knee_extensions.mp4', poseType: 'knee_bend' },
+  { id: 9, name: 'ท่าลุกยืนและนั่งลงบนเก้าอี้', category: 'easy', video: 'sit_to_stand.mp4', poseType: 'squat_sit' },
+  { id: 10, name: 'ท่าสคอท', category: 'hard', video: 'squat.mp4', poseType: 'squat_sit' },
+  { id: 11, name: 'ท่าก้าวชิด', category: 'hard', video: 'step_touch.mp4', poseType: 'leg_raise' },
+  { id: 12, name: 'ท่าเขย่งส้นเท้า', category: 'hard', video: 'toe_raises.mp4', poseType: 'calf_raise' },
 ];
 
 const monthNames = [
@@ -237,20 +238,59 @@ function CalendarModal({
 
 export default function ExerciseScreen({ navigation, route }: { navigation: any; route?: any }) {
   const params = route?.params || {};
-  const [displayPatientName, setDisplayPatientName] = useState(params.patientName ?? '');
-  const [displayHN, setDisplayHN] = useState(params.hn ?? '');
-  const [selectedPatientId, setSelectedPatientId] = useState(params.patientId ?? null);
+
+  const getQueryParam = (name: string) => {
+    if (Platform.OS === 'web' && typeof globalThis !== 'undefined') {
+      const urlParams = new URLSearchParams((globalThis as any).location.search);
+      return urlParams.get(name);
+    }
+    return null;
+  };
+
+  const initialPatientId = params.patientId || getQueryParam('patientId') || null;
+  const initialPatientName = params.patientName || getQueryParam('patientName') || '';
+  const initialHN = params.hn || getQueryParam('hn') || '';
+
+  const [displayPatientName, setDisplayPatientName] = useState(initialPatientName);
+  const [displayHN, setDisplayHN] = useState(initialHN);
+  const [selectedPatientId, setSelectedPatientId] = useState(initialPatientId ? Number(initialPatientId) : null);
+
+  const getStaffId = () => {
+    if (params?.staffId) return params.staffId;
+    if (Platform.OS === 'web' && typeof globalThis !== 'undefined') {
+      const urlParams = new URLSearchParams((globalThis as any).location.search);
+      const idFromUrl = urlParams.get('staffId');
+      if (idFromUrl) return parseInt(idFromUrl, 10);
+      const savedId = (globalThis as any).localStorage?.getItem('currentStaffId');
+      if (savedId) return parseInt(savedId, 10);
+    }
+    return 1;
+  };
+
+  const staffId = getStaffId();
+
+  const [doctorName, setDoctorName] = useState('กำลังโหลด...');
+  const [doctorAvatar, setDoctorAvatar] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`http://localhost:3000/api/doctor/profile/${staffId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.First_Name) {
+          setDoctorName(`${data.First_Name} ${data.Last_Name || ''}`.trim());
+          if (data.Profile_Image) setDoctorAvatar(data.Profile_Image);
+        } else {
+          setDoctorName('แพทย์ผู้ใช้งาน');
+        }
+      })
+      .catch((err) => {
+        console.error('Error fetching doctor profile:', err);
+        setDoctorName('แพทย์ผู้ใช้งาน');
+      });
+  }, [staffId]);
 
   const [patientSelectModalVisible, setPatientSelectModalVisible] = useState(false);
   const [patientsList, setPatientsList] = useState<PatientItem[]>([]);
-
-  useEffect(() => {
-    if (params.patientName) {
-      setDisplayPatientName(params.patientName);
-      setDisplayHN(params.hn || '');
-      setSelectedPatientId(params.patientId || null);
-    }
-  }, [params.patientName, params.hn, params.patientId]);
 
   useEffect(() => {
     fetch('http://localhost:3000/api/doctor/patients')
@@ -264,12 +304,6 @@ export default function ExerciseScreen({ navigation, route }: { navigation: any;
             symptom: item.Medical_Condition || 'ไม่ระบุ',
           }));
           setPatientsList(formatted);
-
-          if (!params.patientName && formatted.length > 0) {
-            setDisplayPatientName(formatted[0].name);
-            setDisplayHN(formatted[0].hn);
-            setSelectedPatientId(formatted[0].id);
-          }
         }
       })
       .catch((err) => console.error('Error fetching patients:', err));
@@ -281,6 +315,9 @@ export default function ExerciseScreen({ navigation, route }: { navigation: any;
   const [category, setCategory] = useState<FilterCategory>('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+
+  const [newPoseType, setNewPoseType] = useState('heel_raise');
+  const [newPoseDropdownOpen, setNewPoseDropdownOpen] = useState(false);
   
   const [selections, setSelections] = useState<SelectedExercise[]>(
     initialExercises.map((exercise) => ({
@@ -295,11 +332,18 @@ export default function ExerciseScreen({ navigation, route }: { navigation: any;
   const [newName, setNewName] = useState('');
   const [newCategory, setNewCategory] = useState<Category>('easy');
   const [newVideo, setNewVideo] = useState('');
+  
+  const [newReps, setNewReps] = useState('10 ครั้ง');
+  const [newSets, setNewSets] = useState('1 เซต');
+  const [newRepsDropdownOpen, setNewRepsDropdownOpen] = useState(false);
+  const [newSetsDropdownOpen, setNewSetsDropdownOpen] = useState(false);
+
   const [newCategoryDropdownOpen, setNewCategoryDropdownOpen] = useState(false);
   
   const [confirmed, setConfirmed] = useState(false);
   const [programSummary, setProgramSummary] = useState('');
   const [activeSetsDropdown, setActiveSetsDropdown] = useState<number | null>(null);
+  const [activeRepsDropdown, setActiveRepsDropdown] = useState<number | null>(null);
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [calendarTarget, setCalendarTarget] = useState<'start' | 'end' | null>(null);
   
@@ -322,6 +366,129 @@ export default function ExerciseScreen({ navigation, route }: { navigation: any;
     setProgramSummary('');
   }
 
+  function updateProgramSummary(currentSelections: SelectedExercise[], sDate: string, eDate: string) {
+    const activeItems = currentSelections.filter(s => s.checked);
+    if (activeItems.length === 0 && !sDate && !eDate) {
+      setProgramSummary('');
+      return;
+    }
+
+    const duration = (sDate && eDate) ? getDayDifference(parseDate(sDate)!, parseDate(eDate)!) : 'ยังไม่ได้กำหนด';
+    const exerciseDetails = activeItems
+      .map((item) => {
+        const exObj = exercises.find(e => e.id === item.exerciseId);
+        return exObj ? `${exObj.name} (${item.reps}, ${item.sets})` : '';
+      })
+      .filter(Boolean)
+      .join(', ');
+
+    const summary =
+      `ผู้ป่วย: ${displayPatientName}` +
+      ` ${displayHN ? `(${displayHN})` : ''}` +
+      `\nระยะเวลาโปรแกรม: ${duration !== 'ยังไม่ได้กำหนด' ? `${duration} วัน` : 'ยังไม่ได้กำหนด'} (${sDate || 'ไม่ระบุ'} ถึง ${eDate || 'ไม่ระบุ'})` +
+      `\nรวม ${activeItems.length} ท่า` +
+      `\nรายการ: ${exerciseDetails || 'ยังไม่ได้เลือกท่าฝึก'}`;
+
+    setProgramSummary(summary);
+  }
+
+  useEffect(() => {
+    fetch('http://localhost:3000/api/doctor/exercise-library')
+      .then((res) => res.json())
+      .then((libData) => {
+        let loadedExercises: Exercise[] = initialExercises;
+        if (Array.isArray(libData) && libData.length > 0) {
+          loadedExercises = libData.map((item: any) => {
+            const rawVideo = item.Reference_Video_URL || item.video || '';
+            const videoFileName = rawVideo.includes('/') ? rawVideo.split('/').pop() : rawVideo;
+            const videoUrl = rawVideo.startsWith('http') 
+              ? rawVideo 
+              : `http://localhost:3000/uploads/videos/${videoFileName}`;
+
+            return {
+              id: Number(item.ExerciseID || item.id),
+              name: item.Exercise_Name || item.name || 'ไม่ระบุชื่อท่า',
+              category: (item.Category === 'easy' || item.category === 'easy') ? 'easy' : 'hard',
+              video: videoUrl,
+              poseType: item.Pose_Type || item.poseType || 'heel_raise',
+            };
+          });
+        }
+        setExercises(loadedExercises);
+
+        if (selectedPatientId) {
+          fetch(`http://localhost:3000/api/doctor/patient/${selectedPatientId}/dashboard`)
+            .then((res) => res.json())
+            .then((data) => {
+              const exerciseList = Array.isArray(data) ? data : (data.exercises || data.programExercises || []);
+              
+              const baseSelections = loadedExercises.map((ex) => ({
+                exerciseId: ex.id,
+                checked: false,
+                reps: '10 ครั้ง',
+                sets: '1 เซต',
+              }));
+
+              if (exerciseList.length > 0) {
+                const updatedSelections = baseSelections.map((item) => {
+                  const found = exerciseList.find((ex: any) => {
+                    const exId = ex.ExerciseID || ex.exerciseId || ex.id;
+                    return Number(exId) === Number(item.exerciseId);
+                  });
+
+                  if (found) {
+                    const repsVal = found.Target_Reps || found.targetReps || found.reps || 10;
+                    const setsVal = found.Target_Sets || found.targetSets || found.sets || 1;
+                    return {
+                      ...item,
+                      checked: true,
+                      reps: `${repsVal} ครั้ง`,
+                      sets: `${setsVal} เซต`,
+                    };
+                  }
+                  return item;
+                });
+
+                setSelections(updatedSelections);
+
+                const firstEx = exerciseList[0];
+                const rawStart = data.startDate || firstEx?.ProgramStart || firstEx?.startDate || firstEx?.Start_Date;
+                const rawEnd = data.endDate || firstEx?.ProgramEnd || firstEx?.endDate || firstEx?.End_Date;
+
+                let sDate = '';
+                let eDate = '';
+                if (rawStart) {
+                  sDate = rawStart.split('T')[0];
+                  setStartDate(sDate);
+                }
+                if (rawEnd) {
+                  eDate = rawEnd.split('T')[0];
+                  setEndDate(eDate);
+                }
+
+                updateProgramSummary(updatedSelections, sDate, eDate);
+                setConfirmed(true);
+              } else {
+                setSelections(baseSelections);
+                setStartDate('');
+                setEndDate('');
+                setConfirmed(false);
+                setProgramSummary('');
+              }
+            })
+            .catch((err) => console.error('Error fetching dashboard data:', err));
+        } else {
+          setSelections(loadedExercises.map((ex) => ({
+            exerciseId: ex.id,
+            checked: false,
+            reps: '10 ครั้ง',
+            sets: '1 เซต',
+          })));
+        }
+      })
+      .catch((err) => console.error('Error fetching exercise library:', err));
+  }, [selectedPatientId]);
+
   const filteredExercises = useMemo(() => {
     const normalizedKeyword = keyword.trim().toLowerCase();
     return exercises.filter((exercise) => {
@@ -335,53 +502,106 @@ export default function ExerciseScreen({ navigation, route }: { navigation: any;
   const selectedCount = selectedItems.length;
 
   function toggleExercise(exerciseId: number) {
-    setSelections((previous) =>
-      previous.map((item) =>
+    setSelections((previous) => {
+      const updated = previous.map((item) =>
         item.exerciseId === exerciseId ? { ...item, checked: !item.checked } : item,
-      ),
-    );
+      );
+      updateProgramSummary(updated, startDate, endDate);
+      return updated;
+    });
     resetConfirmation();
   }
 
   function updateSets(exerciseId: number, sets: string) {
-    setSelections((previous) =>
-      previous.map((item) => (item.exerciseId === exerciseId ? { ...item, sets } : item)),
-    );
+    setSelections((previous) => {
+      const updated = previous.map((item) => 
+        item.exerciseId === exerciseId ? { ...item, sets } : item
+      );
+      updateProgramSummary(updated, startDate, endDate);
+      return updated;
+    });
     setActiveSetsDropdown(null);
     resetConfirmation();
   }
 
-  function addNewExercise() {
+  function updateReps(exerciseId: number, reps: string) {
+    setSelections((previous) => {
+      const updated = previous.map((item) => 
+        item.exerciseId === exerciseId ? { ...item, reps } : item
+      );
+      updateProgramSummary(updated, startDate, endDate);
+      return updated;
+    });
+    setActiveRepsDropdown(null);
+    resetConfirmation();
+  }
+
+  async function addNewExercise() {
     const name = newName.trim();
     if (!name) {
       showMessage('ข้อมูลไม่ครบ', 'กรุณากรอกชื่อท่ากายภาพ');
       return;
     }
 
-    const nextId =
-      exercises.length > 0 ? Math.max(...exercises.map((exercise) => exercise.id)) + 1 : 1;
     const videoName = newVideo.trim();
-    const newExercise: Exercise = {
-      id: nextId,
-      name,
-      category: newCategory,
-      video: videoSources[videoName] ? videoName : 'seated_knee_extensions.mp4',
+    const payload = {
+      category: newCategory === 'easy' ? 'กายภาพขา' : 'กายภาพขา',
+      exerciseName: name,
+      description: 'ท่าออกกำลังกายใหม่',
+      videoUrl: videoName || 'seated_knee_extensions.mp4',
+      poseType: newPoseType,
     };
 
-    setExercises((previous) => [...previous, newExercise]);
-    setSelections((previous) => [
-      ...previous,
-      { exerciseId: nextId, checked: false, reps: '10 ครั้ง', sets: '1 เซต' },
-    ]);
-    
-    setKeyword('');
-    setCategory('all');
-    setNewName('');
-    setNewVideo('');
-    setNewCategory('easy');
-    setAddModalVisible(false);
-    resetConfirmation();
-    showMessage('เพิ่มท่ากายภาพสำเร็จ', 'เพิ่มท่ากายภาพลงในรายการจำลองแล้ว');
+    try {
+      const response = await fetch('http://localhost:3000/api/doctor/exercise-library', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        const newExerciseId = result.exerciseId;
+
+        const newExercise: Exercise = {
+          id: newExerciseId,
+          name,
+          category: newCategory,
+          video: `http://localhost:3000/uploads/videos/${videoName || 'seated_knee_extensions.mp4'}`,
+          poseType: newPoseType,
+        };
+
+        setExercises((previous) => [...previous, newExercise]);
+        setSelections((previous) => [
+          ...previous,
+          { 
+            exerciseId: newExerciseId, 
+            checked: false, 
+            reps: newReps, 
+            sets: newSets  
+          },
+        ]);
+        
+        setKeyword('');
+        setCategory('all');
+        setNewName('');
+        setNewVideo('');
+        setNewCategory('easy');
+        setNewPoseType('heel_raise');
+        setNewReps('10 ครั้ง');
+        setNewSets('1 เซต');
+        setAddModalVisible(false);
+        resetConfirmation();
+
+        showMessage('เพิ่มท่ากายภาพสำเร็จ', 'บันทึกท่าลงในคลังกลางเรียบร้อยแล้ว');
+      } else {
+        showMessage('บันทึกไม่สำเร็จ', result.error || 'เกิดข้อผิดพลาด');
+      }
+    } catch (error) {
+      console.error('Error adding exercise:', error);
+      showMessage('ข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อกับ Server ได้');
+    }
   }
 
   async function confirmProgram() {
@@ -422,6 +642,7 @@ export default function ExerciseScreen({ navigation, route }: { navigation: any;
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          staffId: staffId,
           patientId: selectedPatientId || 1,
           startDate: formatDate(start),
           endDate: formatDate(end),
@@ -432,25 +653,13 @@ export default function ExerciseScreen({ navigation, route }: { navigation: any;
       const result = await response.json();
 
       if (response.ok) {
-        const duration = getDayDifference(start, end);
-        const exerciseDetails = selectedItems
-          .map((item) => {
-            const exercise = exercises.find((entry) => entry.id === item.exerciseId);
-            if (!exercise) return '';
-            return `${exercise.name} (${item.reps}, ${item.sets})`;
-          })
-          .filter(Boolean)
-          .join(', ');
-
-        const summary =
-          `ผู้ป่วย: ${displayPatientName}` +
-          ` ${displayHN ? `(${displayHN})` : ''}` +
-          `\nระยะเวลาโปรแกรม: ${duration} วัน (${formatDate(start)} ถึง ${formatDate(end)})` +
-          `\nรวม ${selectedCount} ท่า` +
-          `\nรายการ: ${exerciseDetails}`;
-
-        setProgramSummary(summary);
+        updateProgramSummary(selectedItems, formatDate(start), formatDate(end));
         setConfirmed(true);
+
+        setSelections((previous) =>
+          previous.map((item) => ({ ...item, checked: false }))
+        );
+
         showMessage(
           'จัดโปรแกรมสำเร็จ',
           'บันทึกและส่งมอบหมายโปรแกรมพร้อมวิดีโอไปยังแอปคนไข้เรียบร้อยแล้ว',
@@ -465,7 +674,7 @@ export default function ExerciseScreen({ navigation, route }: { navigation: any;
   }
 
   function goToDashboard() {
-    navigation.navigate('Patient');
+    navigation.navigate('Patient', { staffId: staffId });
   }
 
   function goToLogin() {
@@ -520,23 +729,22 @@ export default function ExerciseScreen({ navigation, route }: { navigation: any;
                 onChangeText={setSearchText}
               />
             </View>
-            <View style={styles.doctorProfile}>
+            <Pressable style={styles.doctorProfile} onPress={() => navigation.navigate('ProfileDoctor', { staffId: staffId })}>
               <View style={styles.doctorAvatar}>
                 <Image
-                  source={require('./img/jenohighschool.jpg')}
+                  source={doctorAvatar ? { uri: doctorAvatar } : require('./img/jenohighschool.jpg')}
                   style={styles.doctorAvatarImage}
                   resizeMode="cover"
                 />
               </View>
-              <Text style={styles.doctorName}>หมอดิน</Text>
-            </View>
+              <Text style={styles.doctorName}>{doctorName}</Text>
+            </Pressable>
           </View>
 
           {/* SCROLLABLE CONTENT BODY */}
           <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
             
-            {/* 🟢 ปุ่มย้อนกลับที่แก้ไขแล้ว: กดแล้วพาไปหน้ารายชื่อผู้ป่วย (Patient) เสมอ */}
-            <Pressable style={styles.backButton} onPress={() => navigation.navigate('Patient')}>
+            <Pressable style={styles.backButton} onPress={goToDashboard}>
               <Text style={styles.backButtonText}>&lt; กลับไปหน้ารายชื่อทั้งหมด</Text>
             </Pressable>
 
@@ -547,7 +755,7 @@ export default function ExerciseScreen({ navigation, route }: { navigation: any;
                     จัดการโปรแกรมท่ากายภาพสำหรับ:{' '}
                     <Pressable onPress={() => setPatientSelectModalVisible(true)}>
                       <Text style={styles.patientNameFixedText}>
-                        {displayPatientName || 'กำลังโหลดข้อมูล...'} {displayHN ? `(${displayHN})` : ''} 🔄
+                        {displayPatientName ? `${displayPatientName} ${displayHN ? `(${displayHN})` : ''}` : '-- กรุณาคลิกเลือกผู้ป่วย --'} 🔍
                       </Text>
                     </Pressable>
                   </Text>
@@ -572,14 +780,15 @@ export default function ExerciseScreen({ navigation, route }: { navigation: any;
                     onPress={() => {
                       setCategoryDropdownOpen((previous) => !previous);
                       setActiveSetsDropdown(null);
+                      setActiveRepsDropdown(null);
                     }}
                   >
                     <Text style={styles.categorySelectText}>
                       {category === 'all'
                         ? 'หมวดหมู่: ทั้งหมด'
                         : category === 'easy'
-                        ? 'ง่าย (5 ท่า)'
-                        : 'ยาก (7 ท่า)'}
+                        ? 'ง่าย'
+                        : 'ยาก'}
                     </Text>
                     <Text style={styles.dropdownArrow}>{categoryDropdownOpen ? '▲' : '▼'}</Text>
                   </Pressable>
@@ -588,8 +797,8 @@ export default function ExerciseScreen({ navigation, route }: { navigation: any;
                     <View style={styles.categoryDropdownMenu}>
                       {[
                         { label: 'หมวดหมู่: ทั้งหมด', value: 'all' },
-                        { label: 'ง่าย (5 ท่า)', value: 'easy' },
-                        { label: 'ยาก (7 ท่า)', value: 'hard' },
+                        { label: 'ง่าย', value: 'easy' },
+                        { label: 'ยาก', value: 'hard' },
                       ].map((item) => (
                         <Pressable
                           key={item.value}
@@ -653,21 +862,22 @@ export default function ExerciseScreen({ navigation, route }: { navigation: any;
                 {filteredExercises.map((exercise, index) => {
                   const selection = selections.find((item) => item.exerciseId === exercise.id);
                   const checked = selection?.checked ?? false;
-                  const videoSource =
-                    videoSources[exercise.video] ?? videoSources['seated_knee_extensions.mp4'];
+                  
+                  const videoFileName = exercise.video.includes('/') ? exercise.video.split('/').pop() : exercise.video;
+                  const videoSource = videoSources[videoFileName || ''] || { uri: exercise.video };
 
                   return (
                     <View 
                       key={exercise.id} 
                       style={[
                         styles.exerciseCard, 
-                        { zIndex: activeSetsDropdown === exercise.id ? 999 : (100 - index) }
+                        { zIndex: (activeSetsDropdown === exercise.id || activeRepsDropdown === exercise.id) ? 999 : (100 - index) }
                       ]}
                     >
                       <View style={styles.videoContainer}>
                         {Platform.OS === 'web' ? (
                           React.createElement('video', {
-                            src: videoSource,
+                            src: typeof videoSource === 'string' ? videoSource : (videoSource?.uri || `http://localhost:3000/uploads/videos/${videoFileName}`),
                             controls: true,
                             playsInline: true,
                             preload: 'metadata',
@@ -697,12 +907,40 @@ export default function ExerciseScreen({ navigation, route }: { navigation: any;
                       <Text style={styles.exerciseName}>{exercise.name}</Text>
 
                       <View style={styles.dropdownRow}>
-                        {/* 10 ครั้ง แสดงนิ่งๆ */}
-                        <View style={styles.disabledSelectBox}>
-                          <Text style={styles.disabledSelectBoxText}>10 ครั้ง</Text>
+                        {/* ดรอปดาวน์เลือกจำนวนครั้ง (Reps) */}
+                        <View style={styles.cardDropdownWrapper}>
+                          <Pressable
+                            style={styles.selectBox}
+                            onPress={() => {
+                              setActiveRepsDropdown(
+                                activeRepsDropdown === exercise.id ? null : exercise.id,
+                              );
+                              setActiveSetsDropdown(null);
+                              setCategoryDropdownOpen(false);
+                            }}
+                          >
+                            <Text style={styles.selectBoxText}>
+                              {selection?.reps || '10 ครั้ง'}
+                            </Text>
+                            <Text style={styles.smallArrow}>▼</Text>
+                          </Pressable>
+
+                          {activeRepsDropdown === exercise.id && (
+                            <View style={styles.cardDropdownList}>
+                              {['5 ครั้ง', '10 ครั้ง'].map((reps) => (
+                                <Pressable
+                                  key={reps}
+                                  style={styles.cardDropdownItem}
+                                  onPress={() => updateReps(exercise.id, reps)}
+                                >
+                                  <Text style={styles.cardDropdownText}>{reps}</Text>
+                                </Pressable>
+                              ))}
+                            </View>
+                          )}
                         </View>
 
-                        {/* Sets Dropdown */}
+                        {/* ดรอปดาวน์เลือกจำนวนเซต (Sets) */}
                         <View style={styles.cardDropdownWrapper}>
                           <Pressable
                             style={styles.selectBox}
@@ -710,6 +948,7 @@ export default function ExerciseScreen({ navigation, route }: { navigation: any;
                               setActiveSetsDropdown(
                                 activeSetsDropdown === exercise.id ? null : exercise.id,
                               );
+                              setActiveRepsDropdown(null);
                               setCategoryDropdownOpen(false);
                             }}
                           >
@@ -750,9 +989,7 @@ export default function ExerciseScreen({ navigation, route }: { navigation: any;
                 <View style={styles.summaryTextBlock}>
                   <Text style={styles.summaryTitle}>สรุปโปรแกรมการรักษา</Text>
                   <Text style={styles.summaryText}>
-                    {confirmed && programSummary
-                      ? programSummary
-                      : `ระยะเวลาโปรแกรม: ยังไม่ได้กำหนด | รวม ${selectedCount} ท่าที่เลือก`}
+                    {programSummary || `ระยะเวลาโปรแกรม: ยังไม่ได้กำหนด | รวม ${selectedCount} ท่าที่เลือก`}
                   </Text>
                 </View>
                 <Pressable style={styles.confirmButton} onPress={confirmProgram}>
@@ -789,7 +1026,7 @@ export default function ExerciseScreen({ navigation, route }: { navigation: any;
                     onPress={() => {
                       setDisplayPatientName(pat.name);
                       setDisplayHN(pat.hn);
-                      setSelectedPatientId(pat.id);
+                      setSelectedPatientId(Number(pat.id));
                       setPatientSelectModalVisible(false);
                       resetConfirmation();
                     }}
@@ -814,29 +1051,54 @@ export default function ExerciseScreen({ navigation, route }: { navigation: any;
         minimumDate={calendarTarget === 'end' ? startDate : undefined}
         onClose={() => setCalendarTarget(null)}
         onSelect={(date) => {
+          let newStart = startDate;
+          let newEnd = endDate;
           if (calendarTarget === 'start') {
+            newStart = date;
             setStartDate(date);
-            if (endDate && date > endDate) setEndDate('');
+            if (endDate && date > endDate) {
+              newEnd = '';
+              setEndDate('');
+            }
           } else {
+            newEnd = date;
             setEndDate(date);
           }
+          updateProgramSummary(selections, newStart, newEnd);
           resetConfirmation();
           setCalendarTarget(null);
         }}
         onClear={() => {
-          if (calendarTarget === 'start') setStartDate('');
-          if (calendarTarget === 'end') setEndDate('');
+          let newStart = startDate;
+          let newEnd = endDate;
+          if (calendarTarget === 'start') {
+            newStart = '';
+            setStartDate('');
+          }
+          if (calendarTarget === 'end') {
+            newEnd = '';
+            setEndDate('');
+          }
+          updateProgramSummary(selections, newStart, newEnd);
           resetConfirmation();
           setCalendarTarget(null);
         }}
         onToday={() => {
           const todayStr = formatDate(new Date());
+          let newStart = startDate;
+          let newEnd = endDate;
           if (calendarTarget === 'start') {
+            newStart = todayStr;
             setStartDate(todayStr);
-            if (endDate && todayStr > endDate) setEndDate('');
+            if (endDate && todayStr > endDate) {
+              newEnd = '';
+              setEndDate('');
+            }
           } else {
+            newEnd = todayStr;
             setEndDate(todayStr);
           }
+          updateProgramSummary(selections, newStart, newEnd);
           resetConfirmation();
           setCalendarTarget(null);
         }}
@@ -858,106 +1120,235 @@ export default function ExerciseScreen({ navigation, route }: { navigation: any;
               </Pressable>
             </View>
 
-            <Text style={styles.fieldLabel}>ชื่อท่ากายภาพ</Text>
-            <TextInput
-              style={styles.modalInput}
-              value={newName}
-              onChangeText={setNewName}
-              placeholder="เช่น knee_flexion.mp4"
-              placeholderTextColor="#999"
-            />
+            <ScrollView contentContainerStyle={{ paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
+              <Text style={styles.fieldLabel}>ชื่อท่ากายภาพ</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={newName}
+                onChangeText={setNewName}
+                placeholder="เช่น knee_flexion.mp4"
+                placeholderTextColor="#999"
+              />
 
-            <Text style={styles.fieldLabel}>หมวดหมู่</Text>
-            <View style={styles.modalCategoryDropdownWrapper}>
-              <Pressable
-                style={styles.modalCategorySelectBtn}
-                onPress={() => setNewCategoryDropdownOpen((prev) => !prev)}
-              >
-                <Text style={styles.modalCategorySelectText}>
-                  {newCategory === 'easy' ? 'ง่าย' : 'ยาก'}
-                </Text>
-                <Text style={styles.dropdownArrow}>{newCategoryDropdownOpen ? '▲' : '▼'}</Text>
-              </Pressable>
+              <Text style={styles.fieldLabel}>หมวดหมู่</Text>
+              <View style={[styles.modalCategoryDropdownWrapper, { zIndex: 50 }]}>
+                <Pressable
+                  style={styles.modalCategorySelectBtn}
+                  onPress={() => {
+                    setNewCategoryDropdownOpen((prev) => !prev);
+                    setNewPoseDropdownOpen(false);
+                    setNewRepsDropdownOpen(false);
+                    setNewSetsDropdownOpen(false);
+                  }}
+                >
+                  <Text style={styles.modalCategorySelectText}>
+                    {newCategory === 'easy' ? 'ง่าย' : 'ยาก'}
+                  </Text>
+                  <Text style={styles.dropdownArrow}>{newCategoryDropdownOpen ? '▲' : '▼'}</Text>
+                </Pressable>
 
-              {newCategoryDropdownOpen && (
-                <View style={styles.modalCategoryDropdownMenu}>
-                  {[
-                    { label: 'ง่าย', value: 'easy' },
-                    { label: 'ยาก', value: 'hard' },
-                  ].map((item) => (
-                    <Pressable
-                      key={item.value}
-                      style={[
-                        styles.modalCategoryDropdownItem,
-                        newCategory === item.value && styles.modalCategoryDropdownItemActive,
-                      ]}
-                      onPress={() => {
-                        setNewCategory(item.value as Category);
-                        setNewCategoryDropdownOpen(false);
-                      }}
-                    >
-                      <Text
+                {newCategoryDropdownOpen && (
+                  <View style={styles.modalCategoryDropdownMenuDown}>
+                    {[
+                      { label: 'ง่าย', value: 'easy' },
+                      { label: 'ยาก', value: 'hard' },
+                    ].map((item) => (
+                      <Pressable
+                        key={item.value}
                         style={[
-                          styles.modalCategoryDropdownItemText,
-                          newCategory === item.value && styles.modalCategoryDropdownItemTextActive,
+                          styles.modalCategoryDropdownItem,
+                          newCategory === item.value && styles.modalCategoryDropdownItemActive,
                         ]}
+                        onPress={() => {
+                          setNewCategory(item.value as Category);
+                          setNewCategoryDropdownOpen(false);
+                        }}
                       >
-                        {item.label}
-                      </Text>
-                    </Pressable>
-                  ))}
+                        <Text
+                          style={[
+                            styles.modalCategoryDropdownItemText,
+                            newCategory === item.value && styles.modalCategoryDropdownItemTextActive,
+                          ]}
+                        >
+                          {item.label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </View>
+
+              <Text style={styles.fieldLabel}>กลุ่มตรวจจับโครงกระดูก (Pose_Type)</Text>
+              <View style={[styles.modalCategoryDropdownWrapper, { zIndex: 40 }]}>
+                <Pressable
+                  style={styles.modalCategorySelectBtn}
+                  onPress={() => {
+                    setNewPoseDropdownOpen((prev) => !prev);
+                    setNewCategoryDropdownOpen(false);
+                    setNewRepsDropdownOpen(false);
+                    setNewSetsDropdownOpen(false);
+                  }}
+                >
+                  <Text style={styles.modalCategorySelectText}>
+                    {newPoseType === 'heel_raise' && 'heel_raise (เขย่งปลายเท้า)'}
+                    {newPoseType === 'squat_sit' && 'squat_sit (สคอท / ลุกนั่ง)'}
+                    {newPoseType === 'leg_raise' && 'leg_raise (ยกขาออกด้านข้าง)'}
+                    {newPoseType === 'knee_bend' && 'knee_bend (งอเข่า / เหยียดเข่า)'}
+                    {newPoseType === 'balance_step' && 'balance_step (ทรงตัว / เดินต่อเท้า)'}
+                  </Text>
+                  <Text style={styles.dropdownArrow}>{newPoseDropdownOpen ? '▲' : '▼'}</Text>
+                </Pressable>
+
+                {newPoseDropdownOpen && (
+                  <View style={styles.modalCategoryDropdownMenuDown}>
+                    {[
+                      { label: 'heel_raise (เขย่งปลายเท้า)', value: 'heel_raise' },
+                      { label: 'squat_sit (สคอท / ลุกนั่ง)', value: 'squat_sit' },
+                      { label: 'leg_raise (ยกขาออกด้านข้าง)', value: 'leg_raise' },
+                      { label: 'knee_bend (งอเข่า / เหยียดเข่า)', value: 'knee_bend' },
+                      { label: 'balance_step (ทรงตัว / เดินต่อเท้า)', value: 'balance_step' },
+                    ].map((item) => (
+                      <Pressable
+                        key={item.value}
+                        style={[
+                          styles.modalCategoryDropdownItem,
+                          newPoseType === item.value && styles.modalCategoryDropdownItemActive,
+                        ]}
+                        onPress={() => {
+                          setNewPoseType(item.value);
+                          setNewPoseDropdownOpen(false);
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.modalCategoryDropdownItemText,
+                            newPoseType === item.value && styles.modalCategoryDropdownItemTextActive,
+                          ]}
+                        >
+                          {item.label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </View>
+
+              {/* จำนวนครั้งและจำนวนเซต */}
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 4, zIndex: 30, position: 'relative' }}>
+                <View style={{ flex: 1, position: 'relative' }}>
+                  <Text style={styles.fieldLabel}>จำนวนครั้ง</Text>
+                  <Pressable
+                    style={styles.selectBox}
+                    onPress={() => {
+                      setNewRepsDropdownOpen(!newRepsDropdownOpen);
+                      setNewSetsDropdownOpen(false);
+                      setNewCategoryDropdownOpen(false);
+                      setNewPoseDropdownOpen(false);
+                    }}
+                  >
+                    <Text style={styles.selectBoxText}>{newReps}</Text>
+                    <Text style={styles.smallArrow}>▼</Text>
+                  </Pressable>
+                  {newRepsDropdownOpen && (
+                    <View style={styles.cardDropdownListDown}>
+                      {['5 ครั้ง', '10 ครั้ง'].map((reps) => (
+                        <Pressable
+                          key={reps}
+                          style={styles.cardDropdownItem}
+                          onPress={() => {
+                            setNewReps(reps);
+                            setNewRepsDropdownOpen(false);
+                          }}
+                        >
+                          <Text style={styles.cardDropdownText}>{reps}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
                 </View>
-              )}
-            </View>
 
-            <Text style={styles.fieldLabel}>เลือกไฟล์วิดีโอจากเครื่อง (.mp4)</Text>
-            <View style={styles.fileInputContainer}>
-              {Platform.OS === 'web' ? (
-                <input
-                  type="file"
-                  accept="video/mp4"
-                  onChange={(e: any) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      setNewVideo(file.name);
-                    }
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '8px',
-                    borderRadius: '8px',
-                    border: '1px solid #ddd',
-                    backgroundColor: '#F9F9F9',
-                    fontSize: '14px',
-                  }}
-                />
-              ) : (
-                <TextInput
-                  style={styles.modalInput}
-                  value={newVideo}
-                  onChangeText={setNewVideo}
-                  placeholder="พิมพ์ชื่อไฟล์วิดีโอในระบบ"
-                  placeholderTextColor="#999"
-                />
-              )}
-            </View>
+                <View style={{ flex: 1, position: 'relative' }}>
+                  <Text style={styles.fieldLabel}>จำนวนเซต</Text>
+                  <Pressable
+                    style={styles.selectBox}
+                    onPress={() => {
+                      setNewSetsDropdownOpen(!newSetsDropdownOpen);
+                      setNewRepsDropdownOpen(false);
+                      setNewCategoryDropdownOpen(false);
+                      setNewPoseDropdownOpen(false);
+                    }}
+                  >
+                    <Text style={styles.selectBoxText}>{newSets}</Text>
+                    <Text style={styles.smallArrow}>▼</Text>
+                  </Pressable>
+                  {newSetsDropdownOpen && (
+                    <View style={styles.cardDropdownListDown}>
+                      {['1 เซต', '2 เซต', '3 เซต', '4 เซต', '5 เซต'].map((sets) => (
+                        <Pressable
+                          key={sets}
+                          style={styles.cardDropdownItem}
+                          onPress={() => {
+                            setNewSets(sets);
+                            setNewSetsDropdownOpen(false);
+                          }}
+                        >
+                          <Text style={styles.cardDropdownText}>{sets}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              </View>
 
-            <View style={styles.modalActions}>
-              <Pressable
-                style={styles.cancelButton}
-                onPress={() => {
-                  setAddModalVisible(false);
-                  setNewName('');
-                  setNewVideo('');
-                  setNewCategory('easy');
-                }}
-              >
-                <Text style={styles.cancelButtonText}>ยกเลิก</Text>
-              </Pressable>
-              <Pressable style={styles.primaryButton} onPress={addNewExercise}>
-                <Text style={styles.primaryButtonText}>บันทึกท่าใหม่</Text>
-              </Pressable>
-            </View>
+              <Text style={styles.fieldLabel}>เลือกไฟล์วิดีโอจากเครื่อง (.mp4)</Text>
+              <View style={styles.fileInputContainer}>
+                {Platform.OS === 'web' ? (
+                  <input
+                    type="file"
+                    accept="video/mp4"
+                    onChange={(e: any) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setNewVideo(file.name);
+                      }
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      borderRadius: '8px',
+                      border: '1px solid #ddd',
+                      backgroundColor: '#F9F9F9',
+                      fontSize: '14px',
+                    }}
+                  />
+                ) : (
+                  <TextInput
+                    style={styles.modalInput}
+                    value={newVideo}
+                    onChangeText={setNewVideo}
+                    placeholder="พิมพ์ชื่อไฟล์วิดีโอในระบบ"
+                    placeholderTextColor="#999"
+                  />
+                )}
+              </View>
+
+              <View style={styles.modalActions}>
+                <Pressable
+                  style={styles.cancelButton}
+                  onPress={() => {
+                    setAddModalVisible(false);
+                    setNewName('');
+                    setNewVideo('');
+                    setNewCategory('easy');
+                  }}
+                >
+                  <Text style={styles.cancelButtonText}>ยกเลิก</Text>
+                </Pressable>
+                <Pressable style={styles.primaryButton} onPress={addNewExercise}>
+                  <Text style={styles.primaryButtonText}>บันทึกท่าใหม่</Text>
+                </Pressable>
+              </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -1358,22 +1749,22 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   checkbox: {
-    width: 20,
-    height: 20,
+    width: 22,
+    height: 22,
+    borderWidth: 2,
+    borderColor: '#0284C7',
     borderRadius: 4,
-    borderWidth: 1.5,
-    borderColor: '#FFFFFF',
-    backgroundColor: 'rgba(255,255,255,0.8)',
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
   },
   checkboxChecked: {
-    backgroundColor: '#0288D1',
-    borderColor: '#0288D1',
+    backgroundColor: '#0284C7',
+    borderColor: '#0284C7',
   },
   checkmark: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: 'bold',
   },
   exerciseName: {
@@ -1387,22 +1778,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     position: 'relative',
-  },
-  disabledSelectBox: {
-    flex: 1,
-    height: 36,
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    backgroundColor: '#F1F5F9',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  disabledSelectBoxText: {
-    fontSize: 12,
-    color: '#475569',
-    fontWeight: '600',
   },
   cardDropdownWrapper: {
     flex: 1,
@@ -1578,7 +1953,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
   },
-  modalCategoryDropdownMenu: {
+  modalCategoryDropdownMenuDown: {
     position: 'absolute',
     top: '100%',
     left: 0,
@@ -1589,16 +1964,34 @@ const styles = StyleSheet.create({
     borderColor: '#ddd',
     borderRadius: 8,
     overflow: 'hidden',
-    zIndex: 40,
+    zIndex: 9999,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 10,
+  },
+  cardDropdownListDown: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    marginTop: 4,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 6,
+    overflow: 'hidden',
+    zIndex: 9999,
+    elevation: 25,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
   },
   modalCategoryDropdownItem: {
     paddingVertical: 12,
-    paddingHorizontal: 12,
+    paddingHorizontal: 15,
     borderBottomWidth: 1,
     borderBottomColor: '#f1f1f1',
   },
@@ -1607,7 +2000,7 @@ const styles = StyleSheet.create({
   },
   modalCategoryDropdownItemText: {
     fontSize: 14,
-    color: '#333',
+    color: '#333333',
   },
   modalCategoryDropdownItemTextActive: {
     color: '#0288D1',

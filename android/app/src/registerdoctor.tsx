@@ -38,8 +38,8 @@ export default function RegisterDoctorScreen({ navigation }: { navigation: any }
 
   const handleRegister = async () => {
     if (!email || !password || !firstName || !licenseNo || licenseNo === 'ก. ') {
-      if (Platform.OS === 'web') {
-        alert('กรุณากรอกข้อมูลสำคัญ (อีเมล, รหัสผ่าน, ชื่อ, เลขทะเบียนวิชาชีพ) ให้ครบถ้วน');
+      if (Platform.OS === 'web' && typeof globalThis !== 'undefined') {
+        (globalThis as any).alert('กรุณากรอกข้อมูลสำคัญ (อีเมล, รหัสผ่าน, ชื่อ, เลขทะเบียนวิชาชีพ) ให้ครบถ้วน');
       } else {
         Alert.alert('แจ้งเตือน', 'กรุณากรอกข้อมูลสำคัญ (อีเมล, รหัสผ่าน, ชื่อ, เลขทะเบียนวิชาชีพ) ให้ครบถ้วน');
       }
@@ -47,7 +47,6 @@ export default function RegisterDoctorScreen({ navigation }: { navigation: any }
     }
 
     try {
-      // 🟢 บังคับชี้ไปพอร์ต 3000 ตาม Backend จริงที่รันอยู่
       const response = await fetch('http://localhost:3000/api/doctor/signup', {
         method: 'POST',
         headers: {
@@ -67,20 +66,32 @@ export default function RegisterDoctorScreen({ navigation }: { navigation: any }
       const result = await response.json();
 
       if (response.ok && result.success) {
-        // 🟢 ลงทะเบียนสำเร็จ เด้งไปหน้า Patient ทันทีโดยไม่มีป๊อปอัพกวนใจ
+        // 🟢 บันทึก staffId ลงเบราว์เซอร์อัตโนมัติเมื่อสมัครสำเร็จ
+        if (Platform.OS === 'web' && typeof globalThis !== 'undefined') {
+          (globalThis as any).localStorage.setItem('currentStaffId', result.staffId);
+        }
+
         if (navigation?.navigate) {
-          navigation.navigate('Patient', { staffId: result.staffId || 1 });
+          navigation.navigate('Patient', { staffId: result.staffId || 4 });
+        } else if (Platform.OS === 'web' && typeof globalThis !== 'undefined') {
+          (globalThis as any).location.href = `/patient?staffId=${result.staffId || 4}`;
         }
       } else {
         const errorMsg = result.message || 'ไม่สามารถลงทะเบียนได้';
-        if (Platform.OS === 'web') alert(errorMsg);
-        else Alert.alert('ผิดพลาด', errorMsg);
+        if (Platform.OS === 'web') {
+          (globalThis as any).alert(errorMsg);
+        } else {
+          Alert.alert('ผิดพลาด', errorMsg);
+        }
       }
     } catch (error) {
       console.error('Error registering doctor:', error);
       const connErr = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ Backend ที่พอร์ต 3000 ได้ กรุณาตรวจสอบว่ารัน Node.js อยู่หรือไม่';
-      if (Platform.OS === 'web') alert(connErr);
-      else Alert.alert('ข้อผิดพลาด', connErr);
+      if (Platform.OS === 'web') {
+        (globalThis as any).alert(connErr);
+      } else {
+        Alert.alert('ข้อผิดพลาด', connErr);
+      }
     }
   };
 
@@ -171,7 +182,7 @@ export default function RegisterDoctorScreen({ navigation }: { navigation: any }
                   <select
                     value={position}
                     onChange={(e: any) => setPosition(e.target.value)}
-                    style={styles.selectWeb}
+                    style={styles.selectWeb as any}
                   >
                     {POSITION_OPTIONS.map((opt, idx) => (
                       <option key={idx} value={opt}>
@@ -237,17 +248,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#E0F7FA',
     justifyContent: 'center',
     alignItems: 'center',
+    width: '100%',
   },
   scrollContainer: {
     padding: 24,
     width: '100%',
-    maxWidth: 700,
+    maxWidth: 1100,
     alignSelf: 'center',
   },
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 30,
+    padding: 40,
+    width: '100%',
     ...Platform.select({
       web: { boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.08)' } as any,
       default: { elevation: 3 },
@@ -260,23 +273,23 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
   },
   titleHeaderText: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '700',
     color: '#1E293B',
   },
   titleHeaderSub: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#64748B',
     marginTop: 4,
   },
   formGrid2: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 16,
+    gap: 20,
   },
   formGroup: {
-    width: '48%',
-    minWidth: 260,
+    flex: 1,
+    minWidth: '45%',
     marginBottom: 16,
   },
   formGroupFull: {
@@ -293,8 +306,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#CBD5E1',
     borderRadius: 8,
-    paddingHorizontal: 12,
-    height: 42,
+    paddingHorizontal: 14,
+    height: 46,
     fontSize: 14,
     color: '#1E293B',
     backgroundColor: '#FFFFFF',
@@ -302,7 +315,7 @@ const styles = StyleSheet.create({
   },
   selectWeb: {
     width: '100%',
-    height: '42px',
+    height: '46px',
     border: '1px solid #CBD5E1',
     borderRadius: '8px',
     paddingLeft: '12px',
@@ -339,14 +352,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 30,
+    marginTop: 35,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
-    paddingTop: 16,
+    paddingTop: 20,
   },
   btnSecondary: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
     borderRadius: 8,
     backgroundColor: '#E2E8F0',
   },
@@ -356,8 +369,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   btnPrimary: {
-    paddingVertical: 10,
-    paddingHorizontal: 28,
+    paddingVertical: 12,
+    paddingHorizontal: 32,
     borderRadius: 8,
     backgroundColor: '#0288D1',
   },

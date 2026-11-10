@@ -29,7 +29,7 @@ export default function LoginScreen({ navigation }: { navigation?: any }) {
     setLoading(true);
 
     try {
-      // 2. ส่งข้อมูลไปตรวจสอบที่ Backend (พอร์ต 3000)
+      // 2. ส่งข้อมูลไปตรวจสอบที่ Backend (พอร์ต 3000)[cite: 2]
       const response = await fetch('http://localhost:3000/api/auth/login', {
         method: 'POST',
         headers: {
@@ -46,12 +46,20 @@ export default function LoginScreen({ navigation }: { navigation?: any }) {
 
       // 3. ตรวจสอบผลลัพธ์จาก Database
       if (response.ok && data.success) {
-        // ถ้ารหัสถูกต้องและมีชื่อในฐานข้อมูล นำทางไปที่หน้า Patient
+        // 🟢 เคลียร์ข้อมูลเก่าทิ้งก่อน และบันทึก staffId ใหม่ลงในเบราว์เซอร์เมื่อ Login สำเร็จ[cite: 2]
+        if (Platform.OS === 'web' && typeof globalThis !== 'undefined') {
+          (globalThis as any).localStorage.removeItem('currentStaffId');
+          (globalThis as any).localStorage.setItem('currentStaffId', data.user.StaffID);
+        }
+
+        // ถ้ารหัสถูกต้อง นำทางไปที่หน้า Patient พร้อมแนบ staffId[cite: 2]
         if (navigation?.navigate) {
-          navigation.navigate('Patient');
+          navigation.navigate('Patient', { staffId: data.user.StaffID });
+        } else if (Platform.OS === 'web' && typeof globalThis !== 'undefined') {
+          (globalThis as any).location.href = `/patient?staffId=${data.user.StaffID}`;
         }
       } else {
-        // แจ้งเตือนเมื่อข้อมูลไม่ถูกต้อง
+        // แจ้งเตือนเมื่อข้อมูลไม่ถูกต้อง[cite: 2]
         Alert.alert(
           'เข้าสู่ระบบไม่สำเร็จ',
           data.message || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'
@@ -161,7 +169,7 @@ export default function LoginScreen({ navigation }: { navigation?: any }) {
               )}
             </TouchableOpacity>
 
-            {/* 🟢 ปุ่มลิงก์สำหรับไปหน้าสมัครสมาชิกแพทย์ใหม่ */}
+            {/* ปุ่มลิงก์สำหรับไปหน้าสมัครสมาชิกแพทย์ใหม่ */}
             <TouchableOpacity
               style={styles.registerDoctorLinkWrapper}
               onPress={() => {

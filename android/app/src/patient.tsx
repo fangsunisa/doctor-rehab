@@ -25,22 +25,61 @@ export default function PatientDashboardScreen({ navigation, route }: { navigati
   const [searchText, setSearchText] = useState('');
   const [patients, setPatients] = useState<Patient[]>([]);
   
-  // 🟢 เพิ่ม State สำหรับดึงข้อมูลหมอจาก Database
   const [doctorName, setDoctorName] = useState('กำลังโหลด...');
   const [doctorAvatar, setDoctorAvatar] = useState<string | null>(null);
 
-  // 🟢 ใช้ useFocusEffect เพื่อให้โหลดข้อมูลใหม่ทุกครั้งที่กลับมาหน้านี้
+  // 🟢 ปรับปรุงการดึง staffId ให้เช็กจาก URL Query เป็นหลัก และบันทึกลง localStorage ปัจจุบัน
+  const getStaffId = () => {
+    if (route?.params?.staffId) {
+      const paramId = Number(route.params.staffId);
+      if (Platform.OS === 'web' && typeof globalThis !== 'undefined') {
+        (globalThis as any).localStorage?.setItem('currentStaffId', paramId.toString());
+      }
+      return paramId;
+    }
+    
+    if (Platform.OS === 'web' && typeof globalThis !== 'undefined') {
+      const urlParams = new URLSearchParams((globalThis as any).location.search);
+      const idFromUrl = urlParams.get('staffId');
+      if (idFromUrl) {
+        const parsedUrlId = parseInt(idFromUrl, 10);
+        (globalThis as any).localStorage?.setItem('currentStaffId', parsedUrlId.toString());
+        return parsedUrlId;
+      }
+      const savedId = (globalThis as any).localStorage?.getItem('currentStaffId');
+      if (savedId) {
+        return parseInt(savedId, 10);
+      }
+    }
+    return null; // คืนค่าเป็น null หากไม่พบ เพื่อป้องกันการดึงมั่ว
+  };
+
+  const staffId = getStaffId();
+
   useFocusEffect(
     useCallback(() => {
+      // ⚠️ ถ้าไม่มี staffId ให้เด้งกลับไปหน้า Login ทันทีเพื่อความปลอดภัย
+      if (!staffId) {
+        if (navigation?.navigate) {
+          navigation.navigate('Login');
+        } else if (Platform.OS === 'web' && typeof globalThis !== 'undefined') {
+          (globalThis as any).location.href = '/login';
+        }
+        return;
+      }
+
+      // 🟢 เคลียร์ค่าเก่าทิ้งก่อนโหลดข้อมูลใหม่ทุกครั้ง ป้องกันข้อมูลหมอคนเก่าค้าง
+      setPatients([]);
+      setDoctorName('กำลังโหลด...');
+      
       fetchPatients();
       fetchDoctorProfile();
-    }, [])
+    }, [staffId])
   );
 
-  // 🟢 ดึงข้อมูลโปรไฟล์หมอจาก Backend (StaffID = 1 หรือตามที่ล็อกอิน)
   const fetchDoctorProfile = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/doctor/profile/1');
+      const response = await fetch(`http://localhost:3000/api/doctor/profile/${staffId}`);
       const data = await response.json();
       if (response.ok && data.First_Name) {
         setDoctorName(`${data.First_Name} ${data.Last_Name || ''}`.trim());
@@ -48,32 +87,39 @@ export default function PatientDashboardScreen({ navigation, route }: { navigati
           setDoctorAvatar(data.Profile_Image);
         }
       } else {
-        setDoctorName('หมอดิน');
+        setDoctorName('แพทย์ผู้ใช้งาน');
       }
     } catch (error) {
       console.error('Error fetching doctor profile:', error);
-      setDoctorName('หมอดิน');
+      setDoctorName('แพทย์ผู้ใช้งาน');
     }
   };
 
   const fetchPatients = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/doctor/patients');
+      const response = await fetch(`http://localhost:3000/api/doctor/patients?staffId=${staffId}`);
       const data = await response.json();
 
       if (response.ok && Array.isArray(data)) {
-        const formattedData: Patient[] = data.map((item: any) => ({
-          id: item.PatientID ? item.PatientID.toString() : '',
-          name: `${item.First_Name || ''} ${item.Last_Name || ''}`.trim() || 'ไม่ระบุชื่อ',
-          hn: item.PatientID ? `HN${String(item.PatientID).padStart(5, '0')}` : 'HN-----',
-          symptom: item.Medical_Condition || 'ไม่ระบุอาการ',
-          workoutTime: '10:00 น.',
-          progress: 0,
-        }));
+        const formattedData: Patient[] = data.map((item: any) => {
+          const prog = Number(item.progress ?? 0);
+
+          return {
+            id: item.PatientID ? item.PatientID.toString() : '',
+            name: `${item.First_Name || ''} ${item.Last_Name || ''}`.trim() || 'ไม่ระบุชื่อ',
+            hn: item.PatientID ? `HN${String(item.PatientID).padStart(5, '0')}` : 'HN-----',
+            symptom: item.Medical_Condition || 'ไม่ระบุอาการ',
+            workoutTime: item.workoutTime || '10:00 น.',
+            progress: isNaN(prog) ? 0 : Math.min(Math.max(prog, 0), 100),
+          };
+        });
         setPatients(formattedData);
+      } else {
+        setPatients([]); 
       }
     } catch (error) {
       console.error('Error fetching patients:', error);
+      setPatients([]);
     }
   };
 
@@ -92,6 +138,7 @@ export default function PatientDashboardScreen({ navigation, route }: { navigati
         patientId: patient.id,
         patientName: patient.name,
         hn: patient.hn,
+        staffId: staffId,
       });
     }
   };
@@ -102,25 +149,35 @@ export default function PatientDashboardScreen({ navigation, route }: { navigati
         patientId: patient.id,
         patientName: patient.name,
         hn: patient.hn,
+        staffId: staffId,
       });
     }
   };
 
   const goToProfileDoctor = () => {
     if (navigation?.navigate) {
-      navigation.navigate('ProfileDoctor');
+      navigation.navigate('ProfileDoctor', { staffId: staffId });
+    } else if (Platform.OS === 'web' && typeof globalThis !== 'undefined') {
+      (globalThis as any).location.href = `/profile-doctor?staffId=${staffId}`;
     }
   };
 
   const goToSignup = () => {
     if (navigation?.navigate) {
-      navigation.navigate('Signup');
+      navigation.navigate('Signup', { staffId: staffId });
     }
   };
 
   const goToLogin = () => {
+    // 🟢 ล้างค่า StaffID และข้อมูลแคชทั้งหมดเมื่อออกจากระบบ
+    if (Platform.OS === 'web' && typeof globalThis !== 'undefined') {
+      (globalThis as any).localStorage.removeItem('currentStaffId');
+    }
+
     if (navigation?.navigate) {
       navigation.navigate('Login');
+    } else if (Platform.OS === 'web' && typeof globalThis !== 'undefined') {
+      (globalThis as any).location.href = '/login';
     }
   };
 
@@ -145,7 +202,7 @@ export default function PatientDashboardScreen({ navigation, route }: { navigati
               <Text style={styles.menuItemTextActive}>📊 แดชบอร์ด</Text>
             </Pressable>
 
-            <Pressable style={styles.menuItem} onPress={() => navigation?.navigate('Exercise')}>
+            <Pressable style={styles.menuItem} onPress={() => navigation?.navigate('Exercise', { staffId: staffId })}>
               <Text style={styles.menuItemText}>📁 คลังท่ากายภาพ</Text>
             </Pressable>
           </View>
@@ -172,7 +229,6 @@ export default function PatientDashboardScreen({ navigation, route }: { navigati
               />
             </View>
 
-            {/* 🟢 แสดงชื่อและรูปหมอที่ดึงมาจาก Database ล่าสุด */}
             <Pressable style={styles.doctorProfile} onPress={goToProfileDoctor}>
               <View style={styles.doctorAvatar}>
                 <Image
@@ -211,37 +267,49 @@ export default function PatientDashboardScreen({ navigation, route }: { navigati
                 <Text style={[styles.th, { flex: 1, textAlign: 'right' }]}>จัดการ</Text>
               </View>
 
-              {filteredPatients.map((patient) => (
-                <View key={patient.id} style={styles.tableRow}>
-                  <View style={{ flex: 2 }}>
-                    <Text style={styles.timeText}>{patient.workoutTime}</Text>
-                    <Pressable onPress={() => goToExerciseManage(patient)}>
-                      <Text style={styles.patientNameClickable}>{patient.name}</Text>
-                    </Pressable>
-                  </View>
+              {filteredPatients.map((patient) => {
+                const barColor = patient.progress >= 100 ? '#10B981' : '#0288D1';
 
-                  <View style={{ flex: 1.5, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
-                    <View style={styles.progressBarBg}>
-                      <View style={[styles.progressBarFill, { width: `${patient.progress}%` }]} />
+                return (
+                  <View key={patient.id} style={styles.tableRow}>
+                    <View style={{ flex: 2 }}>
+                      <Text style={styles.timeText}>{patient.workoutTime}</Text>
+                      <Pressable onPress={() => goToExerciseManage(patient)}>
+                        <Text style={styles.patientNameClickable}>{patient.name}</Text>
+                      </Pressable>
                     </View>
-                    <Text style={styles.progressText}>{patient.progress}%</Text>
-                  </View>
 
-                  <View style={{ flex: 1.5 }}>
-                    <Text style={styles.symptomText}>{patient.symptom}</Text>
-                  </View>
+                    <View style={{ flex: 1.5, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
+                      <View style={styles.progressBarBg}>
+                        <View 
+                          style={[
+                            styles.progressBarFill, 
+                            { 
+                              width: `${patient.progress}%`, 
+                              backgroundColor: barColor 
+                            } 
+                          ]} 
+                        />
+                      </View>
+                      <Text style={styles.progressText}>{patient.progress}%</Text>
+                    </View>
 
-                  <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                    <Pressable style={styles.actionLink} onPress={() => goToDashboardView(patient)}>
-                      <Text style={styles.actionLinkText}>ดูประวัติ</Text>
-                    </Pressable>
+                    <View style={{ flex: 1.5 }}>
+                      <Text style={styles.symptomText}>{patient.symptom}</Text>
+                    </View>
+
+                    <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                      <Pressable style={styles.actionLink} onPress={() => goToDashboardView(patient)}>
+                        <Text style={styles.actionLinkText}>ดูประวัติ</Text>
+                      </Pressable>
+                    </View>
                   </View>
-                </View>
-              ))}
+                );
+              })}
 
               {filteredPatients.length === 0 && (
                 <View style={styles.emptyState}>
-                  <Text style={styles.emptyStateText}>ไม่พบรายชื่อผู้ป่วยที่ค้นหา</Text>
+                  <Text style={styles.emptyStateText}>ไม่พบรายชื่อผู้ป่วยในระบบ (หรือยังไม่มีผู้ป่วย)</Text>
                 </View>
               )}
 
@@ -477,7 +545,6 @@ const styles = StyleSheet.create({
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: '#0288D1',
   },
   progressText: {
     fontSize: 13,

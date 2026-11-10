@@ -28,8 +28,26 @@ export default function ProfileDoctorScreen({ navigation, route }: { navigation?
   const [position, setPosition] = useState(POSITION_OPTIONS[0]);
   const [profileImage, setProfileImage] = useState<string | null>(null);
 
-  // ดึง staffId ที่ส่งมาจากหน้าอื่น (ถ้าไม่มีให้ fallback ไปที่ 1)
-  const staffId = route?.params?.staffId || 1;
+  // 🟢 ระบบดึง staffId อัตโนมัติ: เช็คจาก URL -> เช็คจากเบราว์เซอร์ที่จำไว้ตอน Login/Register -> ค่าเริ่มต้น
+  const getStaffId = () => {
+    if (route?.params?.staffId) {
+      return route.params.staffId;
+    }
+    if (Platform.OS === 'web' && typeof globalThis !== 'undefined') {
+      const urlParams = new URLSearchParams((globalThis as any).location.search);
+      const idFromUrl = urlParams.get('staffId');
+      if (idFromUrl) {
+        return parseInt(idFromUrl, 10);
+      }
+      const savedId = (globalThis as any).localStorage?.getItem('currentStaffId');
+      if (savedId) {
+        return parseInt(savedId, 10);
+      }
+    }
+    return 4; // ค่าเริ่มต้น
+  };
+
+  const staffId = getStaffId();
 
   useEffect(() => {
     if (staffId) {
@@ -37,7 +55,6 @@ export default function ProfileDoctorScreen({ navigation, route }: { navigation?
     }
   }, [staffId]);
 
-  // ดึงข้อมูลโปรไฟล์ตาม staffId จริงที่ล็อกอินหรือสมัครเข้ามา
   const fetchDoctorProfile = async () => {
     try {
       const response = await fetch(`http://localhost:3000/api/doctor/profile/${staffId}`);
@@ -70,7 +87,6 @@ export default function ProfileDoctorScreen({ navigation, route }: { navigation?
     }
   };
 
-  // ฟังก์ชันช่วยให้พอกดคลิกช่อง input แล้วไฮไลต์เลือกข้อความทั้งหมดให้ทันที (แก้/ลบง่ายในคลิกเดียว)
   const handleSelectAll = (e: any) => {
     if (Platform.OS === 'web') {
       const target = e.target || e.nativeEvent?.target;
@@ -81,8 +97,8 @@ export default function ProfileDoctorScreen({ navigation, route }: { navigation?
   };
 
   const handlePickImage = () => {
-    if (Platform.OS === 'web') {
-      const input = (window as any).document.createElement('input');
+    if (Platform.OS === 'web' && typeof globalThis !== 'undefined') {
+      const input = (globalThis as any).document.createElement('input');
       input.type = 'file';
       input.accept = 'image/*';
       input.onchange = (e: any) => {
@@ -101,16 +117,16 @@ export default function ProfileDoctorScreen({ navigation, route }: { navigation?
 
   const goToPatient = () => {
     if (navigation?.navigate) {
-      // ส่ง staffId กลับไปด้วยเพื่อให้หน้า Patient แสดงข้อมูลหมอคนปัจจุบันถูกต้อง
       navigation.navigate('Patient', { staffId: staffId });
+    } else if (Platform.OS === 'web' && typeof globalThis !== 'undefined') {
+      (globalThis as any).location.href = `/patient?staffId=${staffId}`;
     }
   };
 
-  // เมื่อกดบันทึก จะอัปเดตข้อมูลและเด้งไปหน้า Patient ทันที (ไม่มีป๊อปอัพกวนใจ)
   const handleSave = async () => {
     if (!firstName || !licenseNo || licenseNo === 'ก. ') {
       if (Platform.OS === 'web') {
-        alert('กรุณากรอกเลขทะเบียนประกอบวิชาชีพและชื่อให้ครบถ้วน');
+        (globalThis as any).alert('กรุณากรอกเลขทะเบียนประกอบวิชาชีพและชื่อให้ครบถ้วน');
       } else {
         Alert.alert('แจ้งเตือน', 'กรุณากรอกเลขทะเบียนประกอบวิชาชีพและชื่อให้ครบถ้วน');
       }
@@ -136,18 +152,23 @@ export default function ProfileDoctorScreen({ navigation, route }: { navigation?
       const result = await response.json();
 
       if (response.ok) {
-        // 🟢 บันทึกสำเร็จแล้วเด้งไปหน้า Patient ทันทีโดยไม่มีป๊อปอัพแจ้งเตือน
         goToPatient();
       } else {
         const errorMsg = 'อัปเดตไม่สำเร็จ: ' + (result.error || result.message);
-        if (Platform.OS === 'web') alert(errorMsg);
-        else Alert.alert('ผิดพลาด', errorMsg);
+        if (Platform.OS === 'web') {
+          (globalThis as any).alert(errorMsg);
+        } else {
+          Alert.alert('ผิดพลาด', errorMsg);
+        }
       }
     } catch (error) {
       console.error('Error updating profile:', error);
       const connErr = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ Backend ได้';
-      if (Platform.OS === 'web') alert(connErr);
-      else Alert.alert('ข้อผิดพลาด', connErr);
+      if (Platform.OS === 'web') {
+        (globalThis as any).alert(connErr);
+      } else {
+        Alert.alert('ข้อผิดพลาด', connErr);
+      }
     }
   };
 
@@ -187,7 +208,6 @@ export default function ProfileDoctorScreen({ navigation, route }: { navigation?
 
       {/* 2. MAIN CONTENT WRAPPER */}
       <View style={styles.mainContent}>
-        {/* TOP NAVIGATION BAR */}
         <View style={styles.topNavbar}>
           <View style={styles.searchBoxContainer}>
             <Text style={styles.searchIcon}>🔍</Text>
@@ -213,14 +233,12 @@ export default function ProfileDoctorScreen({ navigation, route }: { navigation?
         <ScrollView contentContainerStyle={styles.scrollContainer}>
           <View style={styles.card}>
             
-            {/* Title Header */}
             <View style={styles.titleHeader}>
               <Text style={styles.titleHeaderText}>
                 ตั้งค่าบัญชีผู้ใช้ (แพทย์ / นักกายภาพบำบัด)
               </Text>
             </View>
 
-            {/* Profile Info Box */}
             <View style={styles.profileInfoCard}>
               <View style={styles.avatarWrapper}>
                 <Image
@@ -243,12 +261,10 @@ export default function ProfileDoctorScreen({ navigation, route }: { navigation?
               </View>
             </View>
 
-            {/* Form Title */}
             <Text style={styles.sectionTitle}>
               ข้อมูลทางวิชาชีพและโรงพยาบาล
             </Text>
 
-            {/* Form Grid */}
             <View style={styles.formGrid2}>
               <View style={styles.formGroup}>
                 <Text style={styles.label}>เลขทะเบียนประกอบวิชาชีพ</Text>
@@ -306,14 +322,13 @@ export default function ProfileDoctorScreen({ navigation, route }: { navigation?
                 />
               </View>
 
-              {/* ตำแหน่งทางวิชาชีพ แบบ Dropdown */}
               <View style={styles.formGroupFull}>
                 <Text style={styles.label}>ตำแหน่งทางวิชาชีพ</Text>
                 {Platform.OS === 'web' ? (
                   <select
                     value={position}
                     onChange={(e: any) => setPosition(e.target.value)}
-                    style={styles.selectWeb}
+                    style={styles.selectWeb as any}
                   >
                     {POSITION_OPTIONS.map((opt, idx) => (
                       <option key={idx} value={opt}>
@@ -347,7 +362,6 @@ export default function ProfileDoctorScreen({ navigation, route }: { navigation?
               </View>
             </View>
 
-            {/* Action Buttons */}
             <View style={styles.actionRow}>
               <TouchableOpacity
                 style={styles.btnSecondary}
@@ -496,12 +510,16 @@ const styles = StyleSheet.create({
     color: '#1E293B',
   },
   scrollContainer: {
-    padding: 24,
+    padding: 30,
+    width: '100%',
+    maxWidth: 1350,
+    alignSelf: 'center',
   },
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 24,
+    padding: 40,
+    width: '100%',
     ...Platform.select({
       web: {
         boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.05)',
@@ -518,7 +536,7 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   titleHeaderText: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
     color: '#1E293B',
   },
@@ -568,7 +586,7 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   sectionTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
     color: '#1E293B',
     marginBottom: 15,
@@ -576,11 +594,11 @@ const styles = StyleSheet.create({
   formGrid2: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 16,
+    gap: 20,
   },
   formGroup: {
-    width: '48%',
-    minWidth: 260,
+    flex: 1,
+    minWidth: '45%',
     marginBottom: 15,
   },
   formGroupFull: {
@@ -597,8 +615,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#CBD5E1',
     borderRadius: 8,
-    paddingHorizontal: 12,
-    height: 42,
+    paddingHorizontal: 14,
+    height: 46,
     fontSize: 14,
     color: '#1E293B',
     backgroundColor: '#FFFFFF',
@@ -608,7 +626,7 @@ const styles = StyleSheet.create({
   },
   selectWeb: {
     width: '100%',
-    height: '42px',
+    height: '46px',
     border: '1px solid #CBD5E1',
     borderRadius: '8px',
     paddingLeft: '12px',
@@ -645,13 +663,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 12,
-    marginTop: 30,
+    marginTop: 35,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
-    paddingTop: 16,
+    paddingTop: 20,
   },
   btnSecondary: {
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 8,
     backgroundColor: '#E2E8F0',
@@ -662,8 +680,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   btnPrimary: {
-    paddingVertical: 10,
-    paddingHorizontal: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 32,
     borderRadius: 8,
     backgroundColor: '#0288D1',
   },

@@ -13,7 +13,6 @@ import {
   View,
 } from 'react-native';
 
-// --- ฟังก์ชันช่วยเหลือสำหรับจัดการปฏิทินเลือกวันเกิด ---
 const monthNames = [
   'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน',
   'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม',
@@ -43,7 +42,6 @@ function parseDate(value: string): Date | null {
   return date;
 }
 
-// Component ปฏิทินเลือกวันเกิด
 function BirthCalendarModal({
   visible,
   initialDate,
@@ -149,13 +147,61 @@ function BirthCalendarModal({
 }
 
 export default function SignupHnScreen({ route, navigation }: { route?: any; navigation: any }) {
-  const patientId = route?.params?.patientId || (Platform.OS === 'web' ? new URLSearchParams(window.location.search).get('patientId') : null);
+  const params = route?.params || {};
 
-  // --- Form State (เพิ่ม password กลับเข้ามา) ---
+  const getStaffId = () => {
+    if (params?.staffId) return params.staffId;
+    if (Platform.OS === 'web' && typeof globalThis !== 'undefined') {
+      const urlParams = new URLSearchParams((globalThis as any).location.search);
+      const idFromUrl = urlParams.get('staffId');
+      if (idFromUrl) return parseInt(idFromUrl, 10);
+      const savedId = (globalThis as any).localStorage?.getItem('currentStaffId');
+      if (savedId) return parseInt(savedId, 10);
+    }
+    return 1;
+  };
+
+  const staffId = getStaffId();
+
+  const [doctorName, setDoctorName] = useState('กำลังโหลด...');
+  const [doctorAvatar, setDoctorAvatar] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`http://localhost:3000/api/doctor/profile/${staffId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.First_Name) {
+          setDoctorName(`${data.First_Name} ${data.Last_Name || ''}`.trim());
+          if (data.Profile_Image) setDoctorAvatar(data.Profile_Image);
+        } else {
+          setDoctorName('แพทย์ผู้ใช้งาน');
+        }
+      })
+      .catch((err) => {
+        console.error('Error fetching doctor profile:', err);
+        setDoctorName('แพทย์ผู้ใช้งาน');
+      });
+  }, [staffId]);
+
+  const getPatientId = () => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const idFromUrl = urlParams.get('patientId');
+      if (idFromUrl) return idFromUrl;
+    }
+    if (params?.patientId) {
+      return params.patientId;
+    }
+    return null;
+  };
+
+  const patientId = getPatientId();
+
+  // --- Form State ---
   const [hn, setHn] = useState('HN');
   const [nationalId, setNationalId] = useState('');
   const [phone, setPhone] = useState('');
-  const [password, setPassword] = useState(''); // 🟢 เพิ่ม State สำหรับรหัสผ่าน
+  const [password, setPassword] = useState('');
   const [title, setTitle] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -176,20 +222,20 @@ export default function SignupHnScreen({ route, navigation }: { route?: any; nav
   // Calendar Modal State
   const [calendarVisible, setCalendarVisible] = useState(false);
 
-  // 🟢 ดึงข้อมูลเดิมมาแสดงอัตโนมัติเมื่อมี patientId
+  // 🟢 จุดที่แก้ไข: เพิ่ม ?staffId=${staffId} ต่อท้าย URL เพื่อให้ผ่านการเช็กสิทธิ์ของ Backend
   useEffect(() => {
-    if (patientId && patientId !== '--' && patientId !== '-') {
-      console.log('กำลังดึงข้อมูลผู้ป่วย ID:', patientId);
-      console.log('รหัสผ่านที่จะส่งไป:', password);
-      fetch(`http://localhost:3000/api/doctor/patient/${patientId}`)
+    const targetPatientId = getPatientId();
+
+    if (targetPatientId && targetPatientId !== '--' && targetPatientId !== '-') {
+      fetch(`http://localhost:3000/api/doctor/patient/${targetPatientId}?staffId=${staffId}`)
         .then((res) => res.json())
         .then((data) => {
           if (data) {
-            const formatHnVal = data.HN || data.hn || (data.PatientID ? `HN${String(data.PatientID).padStart(5, '0')}` : `HN${String(patientId).padStart(5, '0')}`);
+            const formatHnVal = data.HN || data.hn || (data.PatientID ? `HN${String(data.PatientID).padStart(5, '0')}` : `HN${String(targetPatientId).padStart(5, '0')}`);
             setHn(formatHnVal);
             setNationalId(data.National_ID || data.nationalId || '');
             setPhone(data.Phone || data.phone || '');
-            setPassword(data.Password || data.password || ''); // 🟢 ดึงรหัสผ่านเดิมมาแสดง (ถ้ามี)
+            setPassword(data.Password || data.password || '');
             setTitle(data.Title || data.title || '');
             setFirstName(data.First_Name || data.firstName || '');
             setLastName(data.Last_Name || data.lastName || '');
@@ -213,6 +259,19 @@ export default function SignupHnScreen({ route, navigation }: { route?: any; nav
           }
         })
         .catch((err) => console.error('Error fetching patient details:', err));
+    } else {
+      fetch('http://localhost:3000/api/doctor/next-hn')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && data.nextHN) {
+            setHn(data.nextHN);
+          } else {
+            setHn(`HN${Math.floor(10000 + Math.random() * 90000)}`);
+          }
+        })
+        .catch(() => {
+          setHn(`HN${Math.floor(10000 + Math.random() * 90000)}`);
+        });
     }
   }, [patientId]);
 
@@ -224,11 +283,14 @@ export default function SignupHnScreen({ route, navigation }: { route?: any; nav
     }
   };
 
-const handleSubmit = async () => {
-    if (!firstName || !lastName || !nationalId || !hn || !phone) {
-      const warningMsg = 'กรุณากรอกข้อมูลสำคัญให้ครบถ้วน (รหัส HN, เลขบัตรประชาชน, เบอร์โทร, ชื่อ, นามสกุล)';
-      if (Platform.OS === 'web') alert(warningMsg);
-      else Alert.alert('แจ้งเตือน', warningMsg);
+  const handleSubmit = async () => {
+    if (!firstName || !lastName || !nationalId || !phone) {
+      const warningMsg = 'กรุณากรอกข้อมูลสำคัญให้ครบถ้วน (เลขบัตรประชาชน, เบอร์โทร, ชื่อ, นามสกุล)';
+      if (Platform.OS === 'web') {
+        (globalThis as any).alert(warningMsg);
+      } else {
+        Alert.alert('แจ้งเตือน', warningMsg);
+      }
       return;
     }
 
@@ -238,17 +300,17 @@ const handleSubmit = async () => {
 
     const method = patientId ? 'PUT' : 'POST';
 
-   try {
+    try {
       const response = await fetch(endpoint, {
         method: method,
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          staffId: 1,
+          staffId: staffId,
           hn: hn,
           phone: phone,
-          password: password, // 🟢 ต้องมีบรรทัดนี้ เพื่อส่งรหัสผ่านไปที่ Backend
+          password: password,
           firstName: firstName,
           lastName: lastName,
           gender: gender || '',
@@ -268,18 +330,26 @@ const handleSubmit = async () => {
 
       if (response.ok) {
         if (navigation?.navigate) {
-          navigation.navigate('Patient');
+          navigation.navigate('Patient', { staffId: staffId });
+        } else if (Platform.OS === 'web' && typeof globalThis !== 'undefined') {
+          (globalThis as any).location.href = `/patient?staffId=${staffId}`;
         }
       } else {
         const errorMsg = 'บันทึกไม่สำเร็จ: ' + (result.error || result.message);
-        if (Platform.OS === 'web') alert(errorMsg);
-        else Alert.alert('ผิดพลาด', errorMsg);
+        if (Platform.OS === 'web') {
+          (globalThis as any).alert(errorMsg);
+        } else {
+          Alert.alert('ผิดพลาด', errorMsg);
+        }
       }
     } catch (error) {
       console.error('Error saving patient:', error);
       const connErr = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ Backend ได้';
-      if (Platform.OS === 'web') alert(connErr);
-      else Alert.alert('ข้อผิดพลาด', connErr);
+      if (Platform.OS === 'web') {
+        (globalThis as any).alert(connErr);
+      } else {
+        Alert.alert('ข้อผิดพลาด', connErr);
+      }
     }
   };
 
@@ -310,14 +380,14 @@ const handleSubmit = async () => {
 
           <TouchableOpacity
             style={styles.menuItem}
-            onPress={() => navigation.navigate('Patient')}
+            onPress={() => navigation.navigate('Patient', { staffId: staffId })}
           >
             <Text style={styles.menuItemText}>📊 แดชบอร์ด</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.menuItem}
-            onPress={() => navigation.navigate('Exercise')}
+            onPress={() => navigation.navigate('Exercise', { staffId: staffId })}
           >
             <Text style={styles.menuItemText}>📁 คลังท่ากายภาพ</Text>
           </TouchableOpacity>
@@ -348,16 +418,16 @@ const handleSubmit = async () => {
 
           <TouchableOpacity
             style={styles.doctorProfile}
-            onPress={() => navigation.navigate('ProfileDoctor')}
+            onPress={() => navigation.navigate('ProfileDoctor', { staffId: staffId })}
           >
             <View style={styles.doctorAvatar}>
               <Image
-                source={require('./img/jenohighschool.jpg')}
+                source={doctorAvatar ? { uri: doctorAvatar } : require('./img/jenohighschool.jpg')}
                 style={styles.doctorAvatarImage}
                 resizeMode="cover"
               />
             </View>
-            <Text style={styles.doctorName}>หมอดิน</Text>
+            <Text style={styles.doctorName}>{doctorName}</Text>
           </TouchableOpacity>
         </View>
 
@@ -373,13 +443,13 @@ const handleSubmit = async () => {
               <View style={styles.formGroup}>
                 <Text style={styles.label}>รหัส HN (Hospital Number)</Text>
                 <TextInput
-                  style={[styles.input, patientId ? { backgroundColor: '#F1F5F9' } : {}]}
+                  style={[styles.input, { backgroundColor: '#F1F5F9' }]}
                   placeholder="เช่น HN66001"
                   placeholderTextColor="#94A3B8"
                   value={hn}
                   onChangeText={handleHnChange}
                   autoCapitalize="characters"
-                  editable={!patientId}
+                  editable={false}
                 />
               </View>
               <View style={styles.formGroup}>
@@ -499,7 +569,6 @@ const handleSubmit = async () => {
                 </View>
               </View>
 
-              {/* ช่องวันเดือนปีเกิดเปิดปฏิทิน */}
               <View style={styles.formGroup}>
                 <Text style={styles.label}>วันเดือนปีเกิด</Text>
                 <TouchableOpacity
@@ -634,7 +703,7 @@ const handleSubmit = async () => {
             <View style={styles.actionRow}>
               <TouchableOpacity
                 style={styles.btnSecondary}
-                onPress={() => navigation.navigate('Patient')}
+                onPress={() => navigation.navigate('Patient', { staffId: staffId })}
               >
                 <Text style={styles.btnSecondaryText}>ยกเลิก</Text>
               </TouchableOpacity>
@@ -651,7 +720,6 @@ const handleSubmit = async () => {
         </ScrollView>
       </View>
 
-      {/* Modal ปฏิทินเลือกวันเกิด */}
       <BirthCalendarModal
         visible={calendarVisible}
         initialDate={birthDate || '1995-01-01'}
