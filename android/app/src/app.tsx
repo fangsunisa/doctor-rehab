@@ -17,7 +17,7 @@ const linking = {
   prefixes: ['http://localhost:3001', 'http://localhost:3000'],
   config: {
     screens: {
-      Login: '', // 👈 ตั้งค่าเป็นค่าว่าง เพื่อให้ URL หลัก (เช่น http://localhost:3001/) เปิดหน้า Login ทันที
+      Login: '', 
       Signup: 'signup',
       ProfileDoctor: 'profile-doctor',
       Patient: 'patient',
